@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NewsGraph - FalkorDB Canvas Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="module" src="https://esm.sh/@falkordb/canvas"></script>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --emerald: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .brand h1 {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-left: 6px;
+    }
+
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      max-width: 860px;
+      margin: 0 12px;
+    }
+
+    select, input {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      font-size: 13px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--accent);
+    }
+
+    #modeSelect {
+      width: 140px;
+      font-weight: 500;
+    }
+
+    #eventSelect {
+      max-width: 280px;
+      text-overflow: ellipsis;
+    }
+
+    #eventIdInput {
+      width: 160px;
+      font-family: monospace;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    button.btn-primary {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    button.btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    button.btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Stats Chips */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .stat-chip strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* Main Content Area */
+    .workspace {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #090d16;
+    }
+
+    falkordb-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Legend Box */
+    .legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 5;
+    }
+
+    .legend-title {
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Side Details Panel */
+    .details-panel {
+      width: 380px;
+      background: var(--card-bg);
+      border-left: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      z-index: 8;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: var(--text-main);
+      border-bottom-color: var(--accent);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .panel-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      flex: 1;
+      font-size: 13px;
+    }
+
+    .empty-state {
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 50px;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .entity-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      line-height: 1.4;
+      color: #fff;
+    }
+
+    .prop-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .prop-table tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .prop-table td {
+      padding: 8px 4px;
+      vertical-align: top;
+    }
+
+    .prop-key {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      width: 35%;
+    }
+
+    .prop-value {
+      color: var(--text-main);
+      word-break: break-word;
+      font-size: 12px;
+    }
+
+    .prop-value a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .prop-value a:hover {
+      text-decoration: underline;
+    }
+
+    .jump-btn {
+      margin-top: 16px;
+      width: 100%;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .jump-btn:hover {
+      background: rgba(59, 130, 246, 0.25);
+    }
+
+    /* Explanation Styles */
+    .explanation-section {
+      margin-bottom: 16px;
+    }
+
+    .explanation-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .explanation-summary {
+      line-height: 1.6;
+      color: #e2e8f0;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .pill {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+    }
+
+    .pill.red {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .chunk-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .chunk-card header {
+      background: transparent;
+      padding: 0 0 6px 0;
+      border: none;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .chunk-card p {
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    .actor-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 6px;
+    }
+    .actor-name {
+      font-weight: 600;
+      color: #fff;
+      font-size: 12px;
+    }
+    .actor-role {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .quote-box {
+      border-left: 3px solid var(--accent);
+      background: rgba(59, 130, 246, 0.06);
+      padding: 8px 10px;
+      border-radius: 0 4px 4px 0;
+      margin-top: 6px;
+      font-size: 12px;
+    }
+    .source-card {
+      display: block;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .source-card:hover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+    }
+    .source-publisher {
+      font-size: 10px;
+      font-weight: 700;
+      color: #10b981;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .source-title {
+      font-size: 12px;
+      color: #93c5fd;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(9, 13, 22, 0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 20;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <h1>NewsGraph</h1>
+      <span>Agentic Visualizer</span>
+    </div>
+
+    <div class="controls-bar">
+      <select id="modeSelect">
+        <option value="investigate">Investigate</option>
+        <option value="impact">Impact Radius</option>
+      </select>
+
+      <select id="eventSelect">
+        <option value="">Loading sample events...</option>
+      </select>
+
+      <input type="text" id="eventIdInput" placeholder="Event ID" value="evt_2026-09-08_0">
+
+      <label class="checkbox-label" title="Enable LangGraph Agent with Scoped Vector & Chunk Tools">
+        <input type="checkbox" id="explainToggle" checked>
+        AI Explanation
+      </label>
+
+      <button id="investigateBtn" class="btn-primary">Run</button>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-chip">Nodes: <strong id="statNodes">0</strong></div>
+      <div class="stat-chip">Edges: <strong id="statEdges">0</strong></div>
+      <div class="stat-chip">Countries: <strong id="statCountries">0</strong></div>
+      <div class="stat-chip">Companies: <strong id="statCompanies">0</strong></div>
+      <div class="stat-chip">Industries: <strong id="statIndustries">0</strong></div>
+    </div>
+  </header>
+
+  <!-- Workspace -->
+  <div class="workspace">
+    <!-- Canvas View -->
+    <div id="canvas-container">
+      <falkordb-canvas id="falkorCanvas"></falkordb-canvas>
+
+      <!-- Legend -->
+      <div class="legend">
+        <div class="legend-title">Labels</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #3B82F6;"></div> Event</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #10B981;"></div> Country</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #F59E0B;"></div> Company</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #8B5CF6;"></div> Industry</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #06B6D4;"></div> Organization</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #64748B;"></div> Article</div>
+        <div class="legend-item"><div class="legend-dot" style="background: #EC4899;"></div> Location</div>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <div id="loadingText" style="font-size: 13px; color: var(--text-muted);">Querying FalkorDB and running LangGraph agent...</div>
+      </div>
+    </div>
+
+    <!-- Inspector Side Panel -->
+    <div class="details-panel" id="detailsPanel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" id="tabInspector">Inspector</button>
+        <button class="tab-btn" id="tabExplanation">AI Explanation</button>
+      </div>
+
+      <div class="panel-body" id="panelBodyInspector">
+        <div class="empty-state">Click any node or link in the canvas to inspect its properties.</div>
+      </div>
+
+      <div class="panel-body" id="panelBodyExplanation" style="display: none;">
+        <div class="empty-state">Run an analysis with "AI Explanation" checked to view grounded agent synthesis.</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    const canvas = document.getElementById('falkorCanvas');
+    const modeSelect = document.getElementById('modeSelect');
+    const eventSelect = document.getElementById('eventSelect');
+    const eventIdInput = document.getElementById('eventIdInput');
+    const explainToggle = document.getElementById('explainToggle');
+    const investigateBtn = document.getElementById('investigateBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    const tabInspector = document.getElementById('tabInspector');
+    const tabExplanation = document.getElementById('tabExplanation');
+    const panelBodyInspector = document.getElementById('panelBodyInspector');
+    const panelBodyExplanation = document.getElementById('panelBodyExplanation');
+
+    let currentExplanation = null;
+
+    // Tabs Switcher
+    tabInspector.addEventListener('click', () => {
+      tabInspector.classList.add('active');
+      tabExplanation.classList.remove('active');
+      panelBodyInspector.style.display = 'block';
+      panelBodyExplanation.style.display = 'none';
+    });
+
+    tabExplanation.addEventListener('click', () => {
+      tabExplanation.classList.add('active');
+      tabInspector.classList.remove('active');
+      panelBodyExplanation.style.display = 'block';
+      panelBodyInspector.style.display = 'none';
+    });
+
+    // Configure FalkorDB Canvas
+    canvas.setConfig({
+      backgroundColor: '#090D16',
+      foregroundColor: '#F8FAFC',
+      captionsKeys: ['title', 'canonical_name', 'name', 'event_id'],
+      showPropertyKeyPrefix: false,
+      eventHandlers: {
+        onNodeClick: (node) => {
+          tabInspector.click();
+          inspectNode(node);
+        },
+        onLinkClick: (link) => {
+          tabInspector.click();
+          inspectLink(link);
+        },
+        onNodeRightClick: (node) => {
+          if (node.labels && node.labels.includes('Event')) {
+            eventIdInput.value = node.id;
+            loadAnalysis(node.id);
+          }
+        }
+      }
+    });
+
+    // Populate events dropdown
+    async function loadSampleEvents() {
+      try {
+        const res = await fetch('/track1/events?limit=25');
+        if (!res.ok) throw new Error('Failed to load events');
+        const events = await res.json();
+        eventSelect.innerHTML = '<option value="">-- Choose a sample event --</option>';
+        events.forEach(evt => {
+          const opt = document.createElement('option');
+          opt.value = evt.event_id;
+          opt.textContent = `${evt.occurred_at ? evt.occurred_at + ' | ' : ''}${evt.title || evt.event_id}`;
+          eventSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error fetching sample events:', err);
+        eventSelect.innerHTML = '<option value="">(Failed to load samples)</option>';
+      }
+    }
+
+    eventSelect.addEventListener('change', () => {
+      if (eventSelect.value) {
+        eventIdInput.value = eventSelect.value;
+        loadAnalysis(eventSelect.value);
+      }
+    });
+
+    investigateBtn.addEventListener('click', () => {
+      const eid = eventIdInput.value.trim();
+      if (eid) loadAnalysis(eid);
+    });
+
+    eventIdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const eid = eventIdInput.value.trim();
+        if (eid) loadAnalysis(eid);
+      }
+    });
+
+    // Fetch and render investigation or impact analysis
+    async function loadAnalysis(eventId) {
+      const mode = modeSelect.value;
+      const explain = explainToggle.checked;
+      showLoading(true, explain ? "Running FalkorDB traversal & LangGraph agent..." : "Executing FalkorDB Cypher traversal...");
+
+      try {
+        const endpoint = mode === 'impact'
+          ? `/track1/impact/${encodeURIComponent(eventId)}?explain=${explain}`
+          : `/track1/investigate/${encodeURIComponent(eventId)}?explain=${explain}`;
+
+        const res = await fetch(endpoint);
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.detail || 'Failed to fetch analysis');
+          return;
+        }
+
+        const data = await res.json();
+        updateStats(data.stats || {});
+
+        // Load graph into FalkorDB Canvas
+        canvas.setData({
+          nodes: data.graph.nodes || [],
+          links: data.graph.links || []
+        });
+
+        // Store and render explanation
+        currentExplanation = data.explanation || null;
+        renderExplanation(currentExplanation);
+
+        if (explain && currentExplanation && (currentExplanation.incident_overview || currentExplanation.blast_radius_overview || currentExplanation.headline)) {
+          tabExplanation.click();
+        } else {
+          // Inspect the root event
+          const root = data.graph.nodes.find(n => n.id === eventId);
+          if (root) {
+            inspectNode(root);
+          }
+        }
+
+      } catch (err) {
+        console.error('Error during analysis:', err);
+        alert('Network or server error while querying graph.');
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function updateStats(stats) {
+      document.getElementById('statNodes').textContent = stats.total_nodes ?? 0;
+      document.getElementById('statEdges').textContent = stats.total_edges ?? 0;
+      document.getElementById('statCountries').textContent = stats.countries_count ?? 0;
+      document.getElementById('statCompanies').textContent = stats.companies_count ?? 0;
+      document.getElementById('statIndustries').textContent = stats.industries_count ?? 0;
+    }
+
+    function inspectNode(node) {
+      const data = node.data || {};
+      const title = data.title || data.canonical_name || data.name || node.id;
+      const labels = node.labels || [];
+
+      let html = `<span class="badge" style="background: ${node.color || '#3b82f6'}; color: #fff;">${escapeHtml(labels.join(' : '))}</span>`;
+      html += `<div class="entity-title">${escapeHtml(title)}</div>`;
+      html += `<table class="prop-table">`;
+      html += `<tr><td class="prop-key">ID</td><td class="prop-value"><code>${escapeHtml(String(node.id))}</code></td></tr>`;
+
+      for (const [key, val] of Object.entries(data)) {
+        if (key === 'centroid' || key === 'embedding') continue;
+        let displayVal = val;
+        if (typeof val === 'string' && val.startsWith('http')) {
+          displayVal = `<a href="${escapeHtml(val)}" target="_blank" rel="noopener">${escapeHtml(val)}</a>`;
+        } else if (typeof val === 'object') {
+          displayVal = `<code>${escapeHtml(JSON.stringify(val))}</code>`;
+        } else {
+          displayVal = escapeHtml(String(val));
+        }
+        html += `<tr><td class="prop-key">${escapeHtml(key)}</td><td class="prop-value">${displayVal}</td></tr>`;
+      }
+      html += `</table>`;
+
+      if (labels.includes('Event') && node.id !== eventIdInput.value) {
+        html += `<button class="jump-btn" id="jumpEventBtn">🔍 Explore This Event</button>`;
+      }
+
+      panelBodyInspector.innerHTML = html;
+
+      const jumpBtn = document.getElementById('jumpEventBtn');
+      if (jumpBtn) {
+        jumpBtn.addEventListener('click', () => {
+          eventIdInput.value = node.id;
+          loadAnalysis(node.id);
+        });
+      }
+    }
+
+    function inspectLink(link) {
+      const rel = link.relationship || 'EDGE';
+      const data = link.data || {};
+
+      let html = `<span class="badge" style="background: #475569; color: #fff;">${escapeHtml(rel)}</span>`;
+      html += `<div class="entity-title">${escapeHtml(rel)}</div>`;
+      html += `<table class="prop-table">`;
+      html += `<tr><td class="prop-key">Source</td><td class="prop-value"><code>${escapeHtml(String(link.source.id || link.source))}</code></td></tr>`;
+      html += `<tr><td class="prop-key">Target</td><td class="prop-value"><code>${escapeHtml(String(link.target.id || link.target))}</code></td></tr>`;
+
+      for (const [key, val] of Object.entries(data)) {
+        let displayVal = val;
+        if (Array.isArray(val) && key === 'evidence_ids') {
+          displayVal = val.map(url => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`).join('<br>');
+        } else if (typeof val === 'object') {
+          displayVal = `<code>${escapeHtml(JSON.stringify(val))}</code>`;
+        } else {
+          displayVal = escapeHtml(String(val));
+        }
+        html += `<tr><td class="prop-key">${escapeHtml(key)}</td><td class="prop-value">${displayVal}</td></tr>`;
+      }
+      html += `</table>`;
+      panelBodyInspector.innerHTML = html;
+    }
+
+    function renderExplanation(exp) {
+      if (!exp || (!exp.summary && !exp.incident_overview && !exp.blast_radius_overview)) {
+        panelBodyExplanation.innerHTML = `<div class="empty-state">No AI explanation generated. Check "AI Explanation" and run an analysis to invoke the LangGraph agent.</div>`;
+        return;
+      }
+
+      let html = '';
+
+      // 1. Headline & Grounding Score
+      const headline = exp.headline || 'Intelligence Synthesis';
+      html += `<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; gap:8px;">`;
+      html += `<div style="font-size:15px; font-weight:700; color:#fff; line-height:1.35;">${escapeHtml(headline)}</div>`;
+      if (exp.grounding_score) {
+        html += `<span class="badge" style="background:#10b981; color:#fff; white-space:nowrap; align-self:flex-start;">Grounding: ${Math.round(exp.grounding_score * 100)}%</span>`;
+      }
+      html += `</div>`;
+
+      // 2. Incident Overview / Blast Radius Overview
+      const overview = exp.incident_overview || exp.blast_radius_overview || exp.summary || '';
+      if (overview) {
+        const titleLabel = exp.incident_overview ? 'Incident Overview' : (exp.blast_radius_overview ? 'Blast Radius Overview' : 'Synthesized Overview');
+        html += `<div class="explanation-section">`;
+        html += `<div class="explanation-title">${titleLabel}</div>`;
+        html += `<div class="explanation-summary">${escapeHtml(overview).replace(/\n\n/g, '<br><br>')}</div>`;
+        html += `</div>`;
+      }
+
+      // 3. Key Actors (UC-01)
+      if (exp.key_actors && Array.isArray(exp.key_actors) && exp.key_actors.length > 0) {
+        html += `<div class="explanation-section">`;
+        html += `<div class="explanation-title">Key Actors & Targets</div>`;
+        exp.key_actors.forEach(actor => {
+          html += `<div class="actor-card">`;
+          html += `<div style="display:flex; justify-content:space-between; align-items:center;">`;
+          html += `<span class="actor-name">${escapeHtml(actor.entity || '')}</span>`;
+          if (actor.type) {
+            html += `<span class="badge" style="background:#3b82f6; color:#fff; font-size:10px; margin:0;">${escapeHtml(actor.type)}</span>`;
+          }
+          html += `</div>`;
+          if (actor.role) {
+            html += `<div class="actor-role">${escapeHtml(actor.role)}</div>`;
+          }
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+
+      // 4. Causal Drivers (UC-01)
+      const drivers = exp.causal_drivers || exp.key_drivers;
+      if (drivers && Array.isArray(drivers) && drivers.length > 0) {
+        html += `<div class="explanation-section">`;
+        html += `<div class="explanation-title">Causal Drivers & Catalysts</div>`;
+        html += `<div class="pill-list">`;
+        drivers.forEach(d => {
+          html += `<span class="pill">${escapeHtml(d)}</span>`;
+        });
+        html += `</div></div>`;
+      }
+
+      // 5. Impacted Sectors (UC-02)
+      if (exp.impacted_sectors && typeof exp.impacted_sectors === 'object') {
+        const cats = Object.entries(exp.impacted_sectors).filter(([k, v]) => Array.isArray(v) && v.length > 0);
+        if (cats.length > 0) {
+          html += `<div class="explanation-section">`;
+          html += `<div class="explanation-title">Impacted Sectors Breakdown</div>`;
+          cats.forEach(([catName, items]) => {
+            items.forEach(sec => {
+              const conf = sec.confidence ? ` [${Math.round(sec.confidence * 100)}%]` : '';
+              html += `<div class="actor-card">`;
+              html += `<div style="display:flex; justify-content:space-between; align-items:center;">`;
+              html += `<span class="actor-name">${escapeHtml(sec.name || '')}</span>`;
+              html += `<span class="badge" style="background:#8b5cf6; color:#fff; font-size:10px; margin:0;">${escapeHtml(catName)}${conf}</span>`;
+              html += `</div>`;
+              if (sec.impact) {
+                html += `<div class="actor-role">${escapeHtml(sec.impact)}</div>`;
+              }
+              html += `</div>`;
+            });
+          });
+          html += `</div>`;
+        }
+      }
+
+      // 6. Critical Chokepoints (UC-02)
+      if (exp.critical_chokepoints && Array.isArray(exp.critical_chokepoints) && exp.critical_chokepoints.length > 0) {
+        html += `<div class="explanation-section">`;
+        html += `<div class="explanation-title">Critical Chokepoints & Vulnerabilities</div>`;
+        exp.critical_chokepoints.forEach(cp => {
+          if (typeof cp === 'object') {
+            html += `<div class="actor-card" style="border-left: 3px solid #ef4444;">`;
+            html += `<div style="display:flex; justify-content:space-between; align-items:center;">`;
+            html += `<span class="actor-name" style="color:#fca5a5;">${escapeHtml(cp.name || '')}</span>`;
+            if (cp.category) {
+              html += `<span class="badge" style="background:rgba(239,68,68,0.2); color:#fca5a5; font-size:10px; margin:0;">${escapeHtml(cp.category)}</span>`;
+            }
+            html += `</div>`;
+            if (cp.vulnerability) {
+              html += `<div class="actor-role">${escapeHtml(cp.vulnerability)}</div>`;
+            }
+            html += `</div>`;
+          } else {
+            html += `<div class="pill red" style="margin-top:4px;">${escapeHtml(String(cp))}</div>`;
+          }
+        });
+        html += `</div>`;
+      }
+
+      // 7. Verified Quotes & Metrics
+      const quotes = exp.verified_quotes_and_metrics || exp.verified_metrics;
+      if (quotes && Array.isArray(quotes) && quotes.length > 0) {
+        html += `<div class="explanation-section">`;
+        html += `<div class="explanation-title">Verified Evidence & Quotes</div>`;
+        quotes.forEach(q => {
+          html += `<div class="quote-box">`;
+          if (q.claim) {
+            html += `<div style="font-weight:600; color:#e2e8f0; margin-bottom:4px;">${escapeHtml(q.claim)}</div>`;
+          }
+          if (q.quote) {
+            html += `<div style="color:#cbd5e1; font-style:italic; font-size:11.5px; line-height:1.4;">"${escapeHtml(q.quote)}"</div>`;
+          }
+          html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:10.5px;">`;
+          html += `<span style="color:#10b981; font-weight:700; text-transform:uppercase;">${escapeHtml(q.publisher || 'Verified Publisher')}</span>`;
+          if (q.url) {
+            html += `<a href="${escapeHtml(q.url)}" target="_blank" rel="noopener" style="color:#60a5fa; text-decoration:none;">View Source ↗</a>`;
+          }
+          html += `</div>`;
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+
+      // 8. Read More Cards
+      if (exp.read_more && Array.isArray(exp.read_more) && exp.read_more.length > 0) {
+        html += `<div class="explanation-section" style="margin-top:18px;">`;
+        html += `<div class="explanation-title">Read More About This Analysis</div>`;
+        exp.read_more.forEach(item => {
+          html += `<a class="source-card" href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener">`;
+          html += `<div class="source-publisher">${escapeHtml(item.publisher || 'Source')}</div>`;
+          html += `<div class="source-title">${escapeHtml(item.title || item.url || '')} ↗</div>`;
+          html += `</a>`;
+        });
+        html += `</div>`;
+      }
+
+      panelBodyExplanation.innerHTML = html;
+    }
+
+    function showLoading(show, text = "") {
+      loadingOverlay.style.display = show ? 'flex' : 'none';
+      if (text) loadingText.textContent = text;
+      investigateBtn.disabled = show;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Initialize
+    loadSampleEvents();
+    loadAnalysis(eventIdInput.value);
+  </script>
+</body>
+</html>
