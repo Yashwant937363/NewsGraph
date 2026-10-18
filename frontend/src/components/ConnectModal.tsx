@@ -61,9 +61,9 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(3, 6, 15, 0.75)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.3)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -77,33 +77,37 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
         style={{
           width: '520px',
           maxWidth: '100%',
-          borderRadius: '12px',
+          borderRadius: '20px',
           padding: '24px',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)',
+          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 1)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: 'rgba(59, 130, 246, 0.2)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'rgba(0, 0, 0, 0.06)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--accent-blue)',
+                color: '#1d1d1f',
+                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.9)',
               }}
             >
               <i className="fa-solid fa-route"></i>
             </div>
             <div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Connect the Dots</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Find shortest & causal path between two global incidents (UC-03)
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1d1d1f', letterSpacing: '-0.01em' }}>
+                Connect the Dots
+              </div>
+              <div style={{ fontSize: '12px', color: '#6e6e73' }}>
+                Find shortest & causal path between two incidents (UC-03)
               </div>
             </div>
           </div>
@@ -111,11 +115,18 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
           <button
             onClick={onClose}
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-dim)',
+              background: 'rgba(0, 0, 0, 0.05)',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '50%',
+              width: '28px',
+              height: '28px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#515154',
               cursor: 'pointer',
-              fontSize: '16px',
+              fontSize: '13px',
+              transition: 'all 0.15s ease',
             }}
           >
             <i className="fa-solid fa-xmark"></i>
@@ -123,12 +134,12 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Start Point A */}
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--emerald)', marginBottom: '6px', textTransform: 'uppercase' }}>
-              <i className="fa-solid fa-flag" style={{ marginRight: '6px' }}></i>
-              Source Event A (Origin)
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, color: '#1d1d1f', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <i className="fa-solid fa-flag" style={{ color: '#6e6e73' }}></i>
+              Source Incident A (Origin)
             </label>
             <select
               value={startId}
@@ -136,12 +147,14 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               className="glass-input"
               style={{
                 width: '100%',
-                padding: '9px 12px',
-                borderRadius: '8px',
-                fontSize: '12.5px',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                color: '#1d1d1f',
+                backgroundColor: '#ffffff',
               }}
             >
-              <option value="">-- Select Source Event A --</option>
+              <option value="">-- Select Source Incident A --</option>
               {events.map((evt) => (
                 <option key={evt.event_id} value={evt.event_id}>
                   {evt.occurred_at} | {evt.title.length > 60 ? evt.title.substring(0, 60) + '...' : evt.title}
@@ -156,16 +169,17 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               type="button"
               onClick={handleSwap}
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--card-border)',
+                background: 'rgba(0, 0, 0, 0.05)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
                 borderRadius: '50%',
-                width: '32px',
-                height: '32px',
+                width: '34px',
+                height: '34px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--text-muted)',
+                color: '#1d1d1f',
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
               title="Swap start and target events"
             >
@@ -175,9 +189,9 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
 
           {/* Target Point B */}
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--accent-blue)', marginBottom: '6px', textTransform: 'uppercase' }}>
-              <i className="fa-solid fa-bullseye" style={{ marginRight: '6px' }}></i>
-              Target Event B (Destination)
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 600, color: '#1d1d1f', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <i className="fa-solid fa-bullseye" style={{ color: '#6e6e73' }}></i>
+              Target Incident B (Destination)
             </label>
             <select
               value={targetId}
@@ -185,12 +199,14 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               className="glass-input"
               style={{
                 width: '100%',
-                padding: '9px 12px',
-                borderRadius: '8px',
-                fontSize: '12.5px',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                color: '#1d1d1f',
+                backgroundColor: '#ffffff',
               }}
             >
-              <option value="">-- Select Target Event B --</option>
+              <option value="">-- Select Target Incident B --</option>
               {events.map((evt) => (
                 <option key={evt.event_id} value={evt.event_id} disabled={evt.event_id === startId}>
                   {evt.occurred_at} | {evt.title.length > 60 ? evt.title.substring(0, 60) + '...' : evt.title}
@@ -200,11 +216,12 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
           </div>
 
           {/* Submit */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
             <button
               type="button"
               onClick={onClose}
               className="glass-button"
+              style={{ padding: '8px 16px', borderRadius: '10px' }}
             >
               Cancel
             </button>
@@ -213,6 +230,7 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
               type="submit"
               disabled={!startId || !targetId || startId === targetId}
               className="glass-button-primary"
+              style={{ padding: '8px 18px', borderRadius: '10px' }}
             >
               <i className="fa-solid fa-route"></i>
               <span>Find Causal Path</span>

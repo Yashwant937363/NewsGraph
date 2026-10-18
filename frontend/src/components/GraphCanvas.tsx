@@ -16,8 +16,8 @@ interface GraphCanvasProps {
   loadingMessage?: string;
   onNodeClick: (node: GraphNode) => void;
   onLinkClick: (link: GraphLink) => void;
-  onInvestigateNode: (nodeId: string) => void;
-  onImpactNode: (nodeId: string) => void;
+  onInvestigateNode: (nodeId: string, explain?: boolean) => void;
+  onImpactNode: (nodeId: string, explain?: boolean) => void;
   onSetStartNode: (nodeId: string, nodeTitle: string) => void;
   onSetTargetNode: (nodeId: string, nodeTitle: string) => void;
 }
@@ -37,6 +37,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [currentLayout, setCurrentLayout] = useState<'force' | 'radial' | 'tree'>('force');
+  const [aiExplain, setAiExplain] = useState<boolean>(true);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -44,14 +45,54 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     node: null,
   });
 
+  const highlightNode = (nodeId: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      const gd = canvas.getGraphData?.();
+      if (gd && gd.nodes) {
+        gd.nodes.forEach((n: any) => {
+          if (!n._originalColor) {
+            n._originalColor = n.color || '#3B82F6';
+          }
+          if (String(n.id) === String(nodeId)) {
+            // High-contrast dark highlight for Apple Light Mode
+            n.color = '#000000';
+          } else {
+            n.color = n._originalColor;
+          }
+        });
+        canvas.refresh?.();
+      }
+    } catch (e) {
+      console.error('Highlight node error:', e);
+    }
+  };
+
+  const clearHighlight = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      const gd = canvas.getGraphData?.();
+      if (gd && gd.nodes) {
+        gd.nodes.forEach((n: any) => {
+          if (n._originalColor) {
+            n.color = n._originalColor;
+          }
+        });
+        canvas.refresh?.();
+      }
+    } catch {}
+  };
+
   // Initialize canvas configurations
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.setConfig({
-      backgroundColor: '#060913',
-      foregroundColor: '#F8FAFC',
+      backgroundColor: '#f8fafc',
+      foregroundColor: '#1d1d1f',
       captionsKeys: ['title', 'canonical_name', 'name', 'event_id'],
       showPropertyKeyPrefix: false,
       layoutMode: 'force',
@@ -62,6 +103,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       eventHandlers: {
         onNodeClick: (node: GraphNode) => {
           setContextMenu((prev) => ({ ...prev, visible: false }));
+          highlightNode(String(node.id));
           onNodeClick(node);
         },
         onLinkClick: (link: GraphLink) => {
@@ -74,6 +116,8 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           const offsetX = rect ? event.clientX - rect.left : event.clientX;
           const offsetY = rect ? event.clientY - rect.top : event.clientY;
 
+          highlightNode(String(node.id));
+
           setContextMenu({
             visible: true,
             x: offsetX,
@@ -83,6 +127,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         },
         onBackgroundClick: () => {
           setContextMenu((prev) => ({ ...prev, visible: false }));
+          clearHighlight();
         },
       },
     });
@@ -106,12 +151,11 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       })),
     } as any);
 
-    // Auto-fit after short delay for simulation initialization
     const timer = window.setTimeout(() => {
       try {
         canvas.zoomToFit(1.15);
       } catch {
-        // ignore layout fit timing
+        // ignore
       }
     }, 450);
 
@@ -168,7 +212,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     }
   };
 
-  // Close context menu on outside click
   useEffect(() => {
     const handleGlobalClick = () => {
       if (contextMenu.visible) {
@@ -187,7 +230,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: 'radial-gradient(ellipse at 40% 30%, #0d152a 0%, #060913 80%)',
+        background: '#f8fafc',
         overflow: 'hidden',
       }}
     >
@@ -201,88 +244,101 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         }}
       />
 
-      {/* Floating Canvas View Controls (Top-Right) */}
+      {/* Floating Canvas Controls (Apple Segmented Style) */}
       <div
         className="glass-panel"
         style={{
           position: 'absolute',
-          top: '16px',
-          right: '16px',
-          borderRadius: '10px',
-          padding: '4px 6px',
+          top: '18px',
+          right: '18px',
+          borderRadius: '12px',
+          padding: '3px 4px',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '3px',
           zIndex: 10,
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
         }}
       >
-        <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-dim)', padding: '0 6px', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: '10px', fontWeight: 600, color: '#86868b', padding: '0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Layout
         </span>
 
         <button
           onClick={() => handleSwitchLayout('force')}
           style={{
-            background: currentLayout === 'force' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-            border: currentLayout === 'force' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent',
-            color: currentLayout === 'force' ? '#93c5fd' : 'var(--text-muted)',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '11px',
+            background: currentLayout === 'force' ? '#1d1d1f' : 'transparent',
+            border: 'none',
+            color: currentLayout === 'force' ? '#ffffff' : '#515154',
+            padding: '5px 11px',
+            borderRadius: '8px',
+            fontSize: '11.5px',
+            fontWeight: currentLayout === 'force' ? 600 : 500,
             cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: currentLayout === 'force' ? '0 2px 6px rgba(0, 0, 0, 0.15)' : 'none',
           }}
           title="Force-directed organic simulation (UC-01)"
         >
-          <i className="fa-solid fa-atom" style={{ marginRight: '4px' }}></i>
+          <i className="fa-solid fa-atom" style={{ marginRight: '5px' }}></i>
           Force
         </button>
 
         <button
           onClick={() => handleSwitchLayout('radial')}
           style={{
-            background: currentLayout === 'radial' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-            border: currentLayout === 'radial' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent',
-            color: currentLayout === 'radial' ? '#93c5fd' : 'var(--text-muted)',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '11px',
+            background: currentLayout === 'radial' ? '#1d1d1f' : 'transparent',
+            border: 'none',
+            color: currentLayout === 'radial' ? '#ffffff' : '#515154',
+            padding: '5px 11px',
+            borderRadius: '8px',
+            fontSize: '11.5px',
+            fontWeight: currentLayout === 'radial' ? 600 : 500,
             cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: currentLayout === 'radial' ? '0 2px 6px rgba(0, 0, 0, 0.15)' : 'none',
           }}
           title="Concentric blast radius rings (UC-02)"
         >
-          <i className="fa-solid fa-bullseye" style={{ marginRight: '4px' }}></i>
+          <i className="fa-solid fa-bullseye" style={{ marginRight: '5px' }}></i>
           Radial
         </button>
 
         <button
           onClick={() => handleSwitchLayout('tree')}
           style={{
-            background: currentLayout === 'tree' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-            border: currentLayout === 'tree' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent',
-            color: currentLayout === 'tree' ? '#93c5fd' : 'var(--text-muted)',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '11px',
+            background: currentLayout === 'tree' ? '#1d1d1f' : 'transparent',
+            border: 'none',
+            color: currentLayout === 'tree' ? '#ffffff' : '#515154',
+            padding: '5px 11px',
+            borderRadius: '8px',
+            fontSize: '11.5px',
+            fontWeight: currentLayout === 'tree' ? 600 : 500,
             cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            boxShadow: currentLayout === 'tree' ? '0 2px 6px rgba(0, 0, 0, 0.15)' : 'none',
           }}
           title="Hierarchical causal flow tree (UC-03)"
         >
-          <i className="fa-solid fa-diagram-project" style={{ marginRight: '4px' }}></i>
+          <i className="fa-solid fa-diagram-project" style={{ marginRight: '5px' }}></i>
           Tree
         </button>
 
-        <div style={{ width: '1px', height: '18px', background: 'var(--card-border)', margin: '0 4px' }} />
+        <div style={{ width: '1px', height: '18px', background: 'rgba(0, 0, 0, 0.08)', margin: '0 4px' }} />
 
         <button
           onClick={handleZoomFit}
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'var(--text-muted)',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            fontSize: '11px',
+            color: '#515154',
+            padding: '5px 9px',
+            borderRadius: '8px',
+            fontSize: '11.5px',
             cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
           title="Auto-fit viewport"
         >
@@ -290,54 +346,56 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         </button>
       </div>
 
-      {/* Floating Legend Overlay (Bottom-Left) */}
+      {/* Floating Legend (Apple Frosted Capsule) */}
       <div
         className="glass-panel"
         style={{
           position: 'absolute',
-          bottom: '16px',
-          left: '16px',
-          borderRadius: '10px',
-          padding: '10px 14px',
+          bottom: '18px',
+          left: '18px',
+          borderRadius: '14px',
+          padding: '12px 16px',
           fontSize: '11px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '6px',
+          gap: '8px',
           zIndex: 10,
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
         }}
       >
-        <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ fontSize: '10px', fontWeight: 700, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Node Palette
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3B82F6' }}></div>
-            <span>Event</span>
+            <span style={{ color: '#1d1d1f' }}>Event</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }}></div>
-            <span>Country</span>
+            <span style={{ color: '#1d1d1f' }}>Country</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B' }}></div>
-            <span>Company</span>
+            <span style={{ color: '#1d1d1f' }}>Company</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8B5CF6' }}></div>
-            <span>Industry</span>
+            <span style={{ color: '#1d1d1f' }}>Industry</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#06B6D4' }}></div>
-            <span>Organization</span>
+            <span style={{ color: '#1d1d1f' }}>Organization</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#64748B' }}></div>
-            <span>Article</span>
+            <span style={{ color: '#1d1d1f' }}>Article</span>
           </div>
         </div>
       </div>
 
-      {/* Node Right-Click Frosted Context Menu */}
+      {/* iOS Style Frosted Context Menu */}
       {contextMenu.visible && contextMenu.node && (
         <div
           className="glass-panel-elevated"
@@ -345,50 +403,85 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             position: 'absolute',
             top: `${contextMenu.y}px`,
             left: `${contextMenu.x}px`,
-            borderRadius: '8px',
-            padding: '6px',
-            minWidth: '200px',
+            borderRadius: '16px',
+            padding: '8px',
+            minWidth: '220px',
             zIndex: 100,
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 1)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Node Title header */}
+          {/* Apple iOS AI Explain Toggle Switch */}
           <div
             style={{
-              padding: '6px 8px',
-              borderBottom: '1px solid var(--card-border)',
-              marginBottom: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 10px',
+              borderRadius: '10px',
+              background: 'rgba(0, 0, 0, 0.04)',
+              marginBottom: '6px',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
             }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              {contextMenu.node.data?.title || contextMenu.node.data?.canonical_name || String(contextMenu.node.id)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1d1d1f', fontWeight: 500 }}>
+              <i className="fa-solid fa-wand-magic-sparkles" style={{ color: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.4)', fontSize: '11px' }}></i>
+              <span>AI Explain</span>
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
-              {contextMenu.node.labels?.join(' : ')}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setAiExplain((prev) => !prev);
+              }}
+              style={{
+                width: '34px',
+                height: '18px',
+                borderRadius: '10px',
+                background: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.16)',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              title="Toggle AI intelligence agent explanation"
+            >
+              <div
+                style={{
+                  width: '14px',
+                  height: '14px',
+                  borderRadius: '50%',
+                  background: '#ffffff',
+                  position: 'absolute',
+                  top: '2px',
+                  left: aiExplain ? '18px' : '2px',
+                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                }}
+              />
             </div>
           </div>
 
-          {/* Action options */}
+          {/* Action options (iOS Style items) */}
           <div
             onClick={() => {
               const id = String(contextMenu.node?.id);
               setContextMenu((prev) => ({ ...prev, visible: false }));
-              onInvestigateNode(id);
+              onInvestigateNode(id, aiExplain);
             }}
             style={{
-              padding: '6px 8px',
-              borderRadius: '4px',
+              padding: '7px 10px',
+              borderRadius: '9px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: '#fff',
+              gap: '10px',
+              fontSize: '12.5px',
+              color: '#1d1d1f',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <i className="fa-solid fa-magnifying-glass-chart" style={{ color: 'var(--accent-blue)', width: '16px' }}></i>
+            <i className="fa-solid fa-magnifying-glass-chart" style={{ color: '#1d1d1f', width: '16px' }}></i>
             <span>Investigate Event</span>
           </div>
 
@@ -396,26 +489,27 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             onClick={() => {
               const id = String(contextMenu.node?.id);
               setContextMenu((prev) => ({ ...prev, visible: false }));
-              onImpactNode(id);
+              onImpactNode(id, aiExplain);
             }}
             style={{
-              padding: '6px 8px',
-              borderRadius: '4px',
+              padding: '7px 10px',
+              borderRadius: '9px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: '#fff',
+              gap: '10px',
+              fontSize: '12.5px',
+              color: '#1d1d1f',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <i className="fa-solid fa-bullseye" style={{ color: 'var(--amber)', width: '16px' }}></i>
+            <i className="fa-solid fa-bullseye" style={{ color: '#1d1d1f', width: '16px' }}></i>
             <span>Calculate Impact Radius</span>
           </div>
 
-          <div style={{ height: '1px', background: 'var(--card-border)', margin: '4px 0' }} />
+          <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
 
           <div
             onClick={() => {
@@ -425,19 +519,20 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
               onSetStartNode(id, title);
             }}
             style={{
-              padding: '6px 8px',
-              borderRadius: '4px',
+              padding: '7px 10px',
+              borderRadius: '9px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: '#fff',
+              gap: '10px',
+              fontSize: '12.5px',
+              color: '#1d1d1f',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(16, 185, 129, 0.15)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <i className="fa-solid fa-flag" style={{ color: 'var(--emerald)', width: '16px' }}></i>
+            <i className="fa-solid fa-flag" style={{ color: '#1d1d1f', width: '16px' }}></i>
             <span>Set as Start Point (A)</span>
           </div>
 
@@ -449,23 +544,24 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
               onSetTargetNode(id, title);
             }}
             style={{
-              padding: '6px 8px',
-              borderRadius: '4px',
+              padding: '7px 10px',
+              borderRadius: '9px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: '#fff',
+              gap: '10px',
+              fontSize: '12.5px',
+              color: '#1d1d1f',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <i className="fa-solid fa-route" style={{ color: 'var(--accent-blue)', width: '16px' }}></i>
+            <i className="fa-solid fa-route" style={{ color: '#1d1d1f', width: '16px' }}></i>
             <span>Connect to Here (B)</span>
           </div>
 
-          <div style={{ height: '1px', background: 'var(--card-border)', margin: '4px 0' }} />
+          <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
 
           <div
             onClick={() => {
@@ -475,16 +571,17 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
               }
             }}
             style={{
-              padding: '6px 8px',
-              borderRadius: '4px',
+              padding: '7px 10px',
+              borderRadius: '9px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: 'var(--text-muted)',
+              gap: '10px',
+              fontSize: '12.5px',
+              color: '#515154',
+              transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <i className="fa-regular fa-file-lines" style={{ width: '16px' }}></i>
@@ -493,34 +590,34 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         </div>
       )}
 
-      {/* Loading Overlay */}
+      {/* Apple Loading Spinner */}
       {loading && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(6, 9, 19, 0.7)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
+            background: 'rgba(245, 245, 247, 0.75)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '12px',
+            gap: '14px',
             zIndex: 30,
           }}
         >
           <div
             style={{
-              width: '42px',
-              height: '42px',
+              width: '40px',
+              height: '40px',
               borderRadius: '50%',
-              border: '3px solid rgba(255, 255, 255, 0.1)',
-              borderTopColor: 'var(--accent-blue)',
+              border: '3px solid rgba(0, 0, 0, 0.12)',
+              borderTopColor: '#1d1d1f',
             }}
             className="animate-spin"
           />
-          <div style={{ fontSize: '13px', color: '#93c5fd', fontWeight: 500 }}>
+          <div style={{ fontSize: '13px', color: '#1d1d1f', fontWeight: 500, letterSpacing: '-0.01em' }}>
             {loadingMessage}
           </div>
         </div>

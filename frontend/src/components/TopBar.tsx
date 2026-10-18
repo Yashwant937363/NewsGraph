@@ -1,33 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { EventItem, EntityItem, GraphStats, ActionMode } from '../types';
+import type { EventItem, EntityItem } from '../types';
 import { searchGraph } from '../services/api';
 
 interface TopBarProps {
-  activeEventId: string;
-  activeMode: ActionMode;
-  explain: boolean;
-  stats?: GraphStats;
-  loading: boolean;
+  activeEventId?: string;
+  loading?: boolean;
   onSelectEvent: (eventId: string) => void;
   onSelectEntity: (entityName: string) => void;
-  onModeChange: (mode: ActionMode) => void;
-  onExplainChange: (explain: boolean) => void;
-  onRunAction: () => void;
-  onOpenConnectModal: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   activeEventId,
-  activeMode,
-  explain,
-  stats,
-  loading,
+  loading = false,
   onSelectEvent,
   onSelectEntity,
-  onModeChange,
-  onExplainChange,
-  onRunAction,
-  onOpenConnectModal,
 }) => {
   const [query, setQuery] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -35,10 +21,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [entities, setEntities] = useState<EntityItem[]>([]);
   const [searching, setSearching] = useState(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLFormElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
 
-  // Fetch suggestions (either recent events if query is empty, or matching items)
   const fetchSuggestions = async (searchQuery: string) => {
     try {
       setSearching(true);
@@ -52,12 +37,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     }
   };
 
-  // Initial load of recent events
   useEffect(() => {
     fetchSuggestions('');
   }, []);
 
-  // Debounced search when query changes
   useEffect(() => {
     if (debounceTimerRef.current) {
       window.clearTimeout(debounceTimerRef.current);
@@ -74,7 +57,6 @@ export const TopBar: React.FC<TopBarProps> = ({
     };
   }, [query]);
 
-  // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -85,93 +67,122 @@ export const TopBar: React.FC<TopBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleSearchSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSearching(true);
+    try {
+      const res = await searchGraph(query, 15);
+      const evts = res.events || [];
+      const ents = res.entities || [];
+      setEvents(evts);
+      setEntities(ents);
+
+      if (evts.length > 0) {
+        onSelectEvent(evts[0].event_id);
+        setDropdownOpen(false);
+      } else if (ents.length > 0) {
+        onSelectEntity(ents[0].canonical_name);
+        setDropdownOpen(false);
+      } else {
+        setDropdownOpen(true);
+      }
+    } catch (err) {
+      console.error('Search submit error:', err);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   return (
     <header
       className="glass-panel"
       style={{
-        height: '64px',
-        padding: '0 20px',
+        height: '62px',
+        padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
+        justifyContent: 'center',
         zIndex: 50,
         position: 'relative',
         borderRadius: 0,
         borderTop: 'none',
         borderLeft: 'none',
         borderRight: 'none',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+        background: 'rgba(255, 255, 255, 0.88)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        boxShadow: '0 1px 4px rgba(0, 0, 0, 0.03)',
       }}
     >
-      {/* Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '170px' }}>
-        <div
-          style={{
-            width: '34px',
-            height: '34px',
-            borderRadius: '9px',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 14px rgba(59, 130, 246, 0.45)',
-          }}
-        >
-          <i className="fa-solid fa-circle-nodes" style={{ color: '#fff', fontSize: '16px' }}></i>
-        </div>
-        <div>
-          <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.02em', color: '#fff' }}>
-            WorldGraph
-          </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Global Intelligence
-          </div>
-        </div>
-      </div>
-
-      {/* Center Controls: Search Bar & Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '850px' }}>
-        {/* Search Bar with live dropdown */}
-        <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
+      {/* Centered Search Container: Only Search Bar and Search Button */}
+      <form
+        onSubmit={handleSearchSubmit}
+        ref={containerRef}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          width: '100%',
+          maxWidth: '620px',
+          position: 'relative',
+        }}
+      >
+        {/* Apple Style Frosted Search Input */}
+        <div style={{ position: 'relative', flex: 1 }}>
           <div
             className="glass-input"
             style={{
               display: 'flex',
               alignItems: 'center',
-              borderRadius: '8px',
-              padding: '0 12px',
-              height: '38px',
+              borderRadius: '12px',
+              padding: '0 14px',
+              height: '40px',
               gap: '10px',
+              background: 'rgba(0, 0, 0, 0.04)',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
             }}
           >
             <i
-              className={`fa-solid ${searching ? 'fa-spinner animate-spin' : 'fa-magnifying-glass'}`}
-              style={{ color: 'var(--text-dim)', fontSize: '13px' }}
+              className={`fa-solid ${searching || loading ? 'fa-spinner animate-spin' : 'fa-magnifying-glass'}`}
+              style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: '13.5px' }}
             ></i>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setDropdownOpen(true)}
-              placeholder="Search incidents, countries, entities, or select event..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchSubmit();
+                }
+              }}
+              placeholder="Search incidents, countries, entities, or topics..."
               style={{
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                color: 'var(--text-main)',
-                fontSize: '13px',
+                color: '#1d1d1f',
+                fontSize: '13.5px',
                 width: '100%',
               }}
             />
             {query && (
               <button
-                onClick={() => setQuery('')}
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  fetchSuggestions('');
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: 'var(--text-dim)',
+                  color: 'rgba(0, 0, 0, 0.45)',
                   cursor: 'pointer',
-                  padding: '2px',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <i className="fa-solid fa-xmark"></i>
@@ -179,43 +190,46 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </div>
 
-          {/* Autocomplete Dropdown */}
+          {/* Autocomplete Dropdown (Apple Light Frosted Glass) */}
           {dropdownOpen && (
             <div
               className="glass-panel-elevated"
               style={{
                 position: 'absolute',
-                top: '46px',
+                top: '50px',
                 left: 0,
                 right: 0,
                 maxHeight: '380px',
                 overflowY: 'auto',
-                borderRadius: '8px',
-                padding: '8px',
+                borderRadius: '16px',
+                padding: '10px',
                 zIndex: 100,
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 1)',
               }}
             >
-              {/* Query Header */}
+              {/* Header */}
               <div
                 style={{
-                  padding: '4px 8px',
+                  padding: '6px 10px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: 'var(--text-dim)',
+                  color: 'rgba(0, 0, 0, 0.5)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  letterSpacing: '0.04em',
                   display: 'flex',
                   justifyContent: 'space-between',
+                  borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+                  marginBottom: '6px',
                 }}
               >
-                <span>{query ? `Search Results for "${query}"` : 'Recent Global Incidents'}</span>
+                <span>{query ? `Results for "${query}"` : 'Recent Global Incidents'}</span>
                 <span>{events.length + entities.length} found</span>
               </div>
 
-              {/* Entities Section (if searching) */}
+              {/* Entities Section */}
               {entities.length > 0 && (
-                <div style={{ marginBottom: '8px' }}>
-                  <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ padding: '4px 10px', fontSize: '10px', color: '#1d1d1f', fontWeight: 600, textTransform: 'uppercase' }}>
                     <i className="fa-solid fa-building-columns" style={{ marginRight: '6px' }}></i>
                     Entities ({entities.length})
                   </div>
@@ -227,35 +241,36 @@ export const TopBar: React.FC<TopBarProps> = ({
                         setDropdownOpen(false);
                       }}
                       style={{
-                        padding: '8px 10px',
-                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        borderRadius: '10px',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        fontSize: '12px',
+                        fontSize: '12.5px',
                         transition: 'background 0.15s ease',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)')}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <i className="fa-solid fa-tag" style={{ color: 'var(--amber)', fontSize: '11px' }}></i>
-                        <span style={{ fontWeight: 600, color: '#fff' }}>{ent.title}</span>
+                        <i className="fa-solid fa-tag" style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: '11px' }}></i>
+                        <span style={{ fontWeight: 600, color: '#1d1d1f' }}>{ent.title}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span
                           style={{
                             fontSize: '10px',
-                            background: 'rgba(59, 130, 246, 0.15)',
-                            color: '#93c5fd',
-                            padding: '1px 6px',
-                            borderRadius: '10px',
+                            background: 'rgba(0, 0, 0, 0.06)',
+                            color: '#1d1d1f',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(0, 0, 0, 0.08)',
                           }}
                         >
                           {ent.category}
                         </span>
-                        <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+                        <span style={{ fontSize: '10px', color: 'rgba(0, 0, 0, 0.45)' }}>
                           {ent.event_count} events
                         </span>
                       </div>
@@ -268,7 +283,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               {events.length > 0 ? (
                 <div>
                   {entities.length > 0 && (
-                    <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--accent-blue)', fontWeight: 600 }}>
+                    <div style={{ padding: '4px 10px', fontSize: '10px', color: '#1d1d1f', fontWeight: 600, textTransform: 'uppercase' }}>
                       <i className="fa-solid fa-newspaper" style={{ marginRight: '6px' }}></i>
                       Incidents ({events.length})
                     </div>
@@ -281,18 +296,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                         setDropdownOpen(false);
                       }}
                       style={{
-                        padding: '8px 10px',
-                        borderRadius: '6px',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
                         cursor: 'pointer',
                         fontSize: '12px',
-                        background: evt.event_id === activeEventId ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                        borderLeft: evt.event_id === activeEventId ? '3px solid var(--accent-blue)' : '3px solid transparent',
-                        marginBottom: '2px',
+                        background: evt.event_id === activeEventId ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                        borderLeft: evt.event_id === activeEventId ? '3px solid #000000' : '3px solid transparent',
+                        marginBottom: '3px',
                         transition: 'all 0.15s ease',
                       }}
                       onMouseEnter={(e) => {
                         if (evt.event_id !== activeEventId) {
-                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                          e.currentTarget.style.background = 'rgba(0, 0, 0, 0.04)';
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -301,15 +316,15 @@ export const TopBar: React.FC<TopBarProps> = ({
                         }
                       }}
                     >
-                      <div style={{ fontWeight: 500, color: '#fff', lineHeight: 1.35 }}>{evt.title}</div>
+                      <div style={{ fontWeight: 500, color: '#1d1d1f', lineHeight: 1.4 }}>{evt.title}</div>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '8px',
-                          marginTop: '3px',
+                          marginTop: '4px',
                           fontSize: '10px',
-                          color: 'var(--text-dim)',
+                          color: 'rgba(0, 0, 0, 0.45)',
                         }}
                       >
                         <span>
@@ -324,7 +339,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </div>
               ) : (
                 !searching && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '12px' }}>
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'rgba(0, 0, 0, 0.45)', fontSize: '12px' }}>
                     No matching incidents or entities found.
                   </div>
                 )
@@ -333,124 +348,33 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
         </div>
 
-        {/* Action Mode Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button
-            onClick={() => onModeChange('investigate')}
-            className={activeMode === 'investigate' ? 'glass-button-primary' : 'glass-button'}
-            style={{ height: '38px', padding: '0 12px' }}
-            title="UC-01: Multi-Hop Link Analysis & Neighborhood"
-          >
-            <i className="fa-solid fa-magnifying-glass-chart"></i>
-            <span>Investigate</span>
-          </button>
-
-          <button
-            onClick={() => onModeChange('impact')}
-            className={activeMode === 'impact' ? 'glass-button-primary' : 'glass-button'}
-            style={{ height: '38px', padding: '0 12px' }}
-            title="UC-02: Blast Radius Traversal & Affected Sectors"
-          >
-            <i className="fa-solid fa-bullseye"></i>
-            <span>Impact Radius</span>
-          </button>
-
-          <button
-            onClick={onOpenConnectModal}
-            className={activeMode === 'connect' ? 'glass-button-primary' : 'glass-button'}
-            style={{ height: '38px', padding: '0 12px' }}
-            title="UC-03: Shortest & Causal Path Between Two Events"
-          >
-            <i className="fa-solid fa-route"></i>
-            <span>Connect Dots</span>
-          </button>
-        </div>
-
-        {/* AI Explanation Toggle */}
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12px',
-            color: explain ? '#93c5fd' : 'var(--text-muted)',
-            cursor: 'pointer',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            padding: '6px 8px',
-            borderRadius: '6px',
-            background: explain ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
-            border: explain ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid transparent',
-          }}
-          title="Run LangGraph Agent for fact-grounded intelligence briefing with verified quotes"
-        >
-          <input
-            type="checkbox"
-            checked={explain}
-            onChange={(e) => onExplainChange(e.target.checked)}
-            style={{ cursor: 'pointer', accentColor: 'var(--accent-blue)' }}
-          />
-          <i className="fa-solid fa-wand-magic-sparkles" style={{ fontSize: '11px' }}></i>
-          <span>AI Briefing</span>
-        </label>
-
-        {/* Run Action Button */}
+        {/* Apple Style Black Pill Search Button */}
         <button
-          onClick={onRunAction}
-          disabled={loading || !activeEventId}
+          type="submit"
+          disabled={searching || loading}
           className="glass-button-primary"
-          style={{ height: '38px', padding: '0 14px' }}
+          style={{
+            height: '40px',
+            padding: '0 20px',
+            borderRadius: '12px',
+            flexShrink: 0,
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
         >
-          {loading ? (
+          {searching || loading ? (
             <>
               <i className="fa-solid fa-spinner animate-spin"></i>
-              <span>Analyzing...</span>
+              <span>Searching...</span>
             </>
           ) : (
             <>
-              <i className="fa-solid fa-bolt"></i>
-              <span>Run</span>
+              <i className="fa-solid fa-magnifying-glass"></i>
+              <span>Search</span>
             </>
           )}
         </button>
-      </div>
-
-      {/* Right Stats Chips */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div
-          className="glass-panel"
-          style={{
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <i className="fa-solid fa-circle" style={{ color: 'var(--accent-blue)', fontSize: '8px' }}></i>
-          <span>Nodes:</span>
-          <strong style={{ color: '#fff' }}>{stats?.total_nodes ?? 0}</strong>
-        </div>
-
-        <div
-          className="glass-panel"
-          style={{
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <i className="fa-solid fa-link" style={{ color: 'var(--emerald)', fontSize: '9px' }}></i>
-          <span>Edges:</span>
-          <strong style={{ color: '#fff' }}>{stats?.total_edges ?? 0}</strong>
-        </div>
-      </div>
+      </form>
     </header>
   );
 };

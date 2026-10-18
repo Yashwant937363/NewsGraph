@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type {
   GraphData,
-  GraphStats,
   GraphNode,
   GraphLink,
   InvestigationExplanation,
@@ -29,17 +28,9 @@ import './App.css';
 export const App: React.FC = () => {
   const [activeEventId, setActiveEventId] = useState<string>('');
   const [activeMode, setActiveMode] = useState<ActionMode>('investigate');
-  const [explain, setExplain] = useState<boolean>(false);
+  const explain = false;
 
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
-  const [stats, setStats] = useState<GraphStats>({
-    total_nodes: 0,
-    total_edges: 0,
-    countries_count: 0,
-    companies_count: 0,
-    industries_count: 0,
-  });
-
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('Querying FalkorDB graph...');
 
@@ -68,30 +59,6 @@ export const App: React.FC = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Helper to calculate basic stats from graph
-  const computeStats = (data: GraphData): GraphStats => {
-    const nodes = data.nodes || [];
-    const links = data.links || [];
-    let countries = 0;
-    let companies = 0;
-    let industries = 0;
-
-    nodes.forEach((n) => {
-      const labels = n.labels || [];
-      if (labels.includes('Country')) countries++;
-      if (labels.includes('Company')) companies++;
-      if (labels.includes('Industry')) industries++;
-    });
-
-    return {
-      total_nodes: nodes.length,
-      total_edges: links.length,
-      countries_count: countries,
-      companies_count: companies,
-      industries_count: industries,
-    };
-  };
-
   // Execution runner for current mode
   const executeAnalysis = useCallback(
     async (eventId: string, mode: ActionMode, explainEnabled: boolean) => {
@@ -108,7 +75,6 @@ export const App: React.FC = () => {
         if (mode === 'investigate') {
           const res = await investigateEvent(eventId, explainEnabled);
           setGraphData(res.graph || { nodes: [], links: [] });
-          setStats(res.stats || computeStats(res.graph));
           setInvestigationBriefing(res.explanation);
           if (explainEnabled && res.explanation) {
             setIsDrawerOpen(true);
@@ -116,7 +82,6 @@ export const App: React.FC = () => {
         } else if (mode === 'impact') {
           const res = await getImpactRadius(eventId, explainEnabled);
           setGraphData(res.graph || { nodes: [], links: [] });
-          setStats(computeStats(res.graph));
           setImpactBriefing(res.explanation);
           if (explainEnabled && res.explanation) {
             setIsDrawerOpen(true);
@@ -185,14 +150,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Handle Mode Change (Investigate / Impact / Connect)
-  const handleModeChange = (newMode: ActionMode) => {
-    setActiveMode(newMode);
-    if (activeEventId) {
-      executeAnalysis(activeEventId, newMode, explain);
-    }
-  };
-
   // Handle Connect Dots execution
   const handleConnect = async (srcId: string, tgtId: string) => {
     try {
@@ -202,7 +159,6 @@ export const App: React.FC = () => {
 
       const res = await connectTheDots(srcId, tgtId, explain);
       setGraphData(res.graph || { nodes: [], links: [] });
-      setStats(computeStats(res.graph));
       setConnectBriefing(res.explanation);
       setIsDrawerOpen(true);
 
@@ -256,22 +212,15 @@ export const App: React.FC = () => {
         height: '100vh',
         width: '100vw',
         overflow: 'hidden',
-        background: 'var(--bg-dark)',
+        background: 'var(--bg-light)',
       }}
     >
-      {/* Frosted Top Bar */}
+      {/* Frosted Top Bar: Search Bar & Search Button Only */}
       <TopBar
         activeEventId={activeEventId}
-        activeMode={activeMode}
-        explain={explain}
-        stats={stats}
         loading={loading}
         onSelectEvent={handleSelectEvent}
         onSelectEntity={handleSelectEntity}
-        onModeChange={handleModeChange}
-        onExplainChange={setExplain}
-        onRunAction={() => executeAnalysis(activeEventId, activeMode, explain)}
-        onOpenConnectModal={() => setIsConnectModalOpen(true)}
       />
 
       {/* Main Workspace */}
@@ -283,15 +232,15 @@ export const App: React.FC = () => {
           loadingMessage={loadingMessage}
           onNodeClick={handleNodeClick}
           onLinkClick={handleLinkClick}
-          onInvestigateNode={(id) => {
+          onInvestigateNode={(id, aiExplain) => {
             setActiveEventId(id);
             setActiveMode('investigate');
-            executeAnalysis(id, 'investigate', explain);
+            executeAnalysis(id, 'investigate', !!aiExplain);
           }}
-          onImpactNode={(id) => {
+          onImpactNode={(id, aiExplain) => {
             setActiveEventId(id);
             setActiveMode('impact');
-            executeAnalysis(id, 'impact', explain);
+            executeAnalysis(id, 'impact', !!aiExplain);
           }}
           onSetStartNode={(id, title) => {
             setConnectStartId(id);
@@ -307,7 +256,7 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Slide-out Intelligence & Evidence Drawer */}
+        {/* Slide-out Intelligence & Evidence Drawer (Opens on left click of node/edge or AI explain) */}
         <SideDrawer
           isOpen={isDrawerOpen}
           activeMode={activeMode}
@@ -319,35 +268,9 @@ export const App: React.FC = () => {
           onClose={() => setIsDrawerOpen(false)}
           onExploreEvent={(eid) => {
             setActiveEventId(eid);
-            executeAnalysis(eid, 'investigate', explain);
+            executeAnalysis(eid, 'investigate', true);
           }}
         />
-
-        {/* Drawer Toggle Handle (if drawer is closed) */}
-        {!isDrawerOpen && (
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            className="glass-panel"
-            style={{
-              position: 'absolute',
-              top: '20px',
-              right: '20px',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              color: '#93c5fd',
-              cursor: 'pointer',
-              zIndex: 20,
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-            }}
-          >
-            <i className="fa-solid fa-sidebar"></i>
-            <span>Open Briefing</span>
-          </button>
-        )}
       </div>
 
       {/* Connect Modal */}
@@ -368,18 +291,18 @@ export const App: React.FC = () => {
             bottom: '24px',
             right: '24px',
             padding: '12px 18px',
-            borderRadius: '10px',
+            borderRadius: '12px',
             fontSize: '12.5px',
-            color: '#fff',
+            color: '#1d1d1f',
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
             zIndex: 200,
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6)',
-            borderLeft: '4px solid var(--accent-blue)',
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.12)',
+            borderLeft: '4px solid #1d1d1f',
           }}
         >
-          <i className="fa-solid fa-circle-info" style={{ color: 'var(--accent-blue)' }}></i>
+          <i className="fa-solid fa-circle-info" style={{ color: '#1d1d1f' }}></i>
           <span>{toast}</span>
         </div>
       )}
