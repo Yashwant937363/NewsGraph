@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WorldGraph — Phase 1 & 2 Knowledge Graph Explorer</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vis-Network for Force-Directed Interactive Graph -->
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    .scroll-panel {
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .vis-network {
+      outline: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen max-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white font-sans overflow-hidden">
+
+  <!-- Top Navigation Header -->
+  <header class="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-30">
+    <div class="flex items-center space-x-4">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3" stroke-width="2"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364-6.364l-2.121 2.121m-8.486 8.486l-2.121 2.121m12.728 0l-2.121-2.121m-8.486-8.486L5.636 5.636" />
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-base font-bold tracking-tight text-white">WorldGraph</h1>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-medium">Phase 1 Output &amp; Phase 2/3 Causal Graph</span>
+        </div>
+        <p class="text-xs text-slate-400">Knowledge Graph: Stories → Events → Typed Entities → Reasoning &amp; Causal Chains</p>
+      </div>
+    </div>
+
+    <!-- Live Graph Stats Bar -->
+    <div id="statsBar" class="hidden xl:flex items-center space-x-2 text-xs">
+      <div class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-1.5" title="Narrative Story Threads">
+        <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+        <span class="text-slate-400">Stories:</span>
+        <span id="statStories" class="font-bold text-white">689</span>
+      </div>
+      <div class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-1.5" title="Daily Micro-Cluster Events">
+        <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+        <span class="text-slate-400">Events:</span>
+        <span id="statEvents" class="font-bold text-white">899</span>
+      </div>
+      <div class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-1.5" title="Phase 2 Typed Entities">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span class="text-slate-400">Entities:</span>
+        <span id="statEntities" class="font-bold text-emerald-300">2,333</span>
+      </div>
+      <div class="px-2 py-1 rounded-lg bg-rose-950/60 border border-rose-500/40 flex items-center space-x-1.5" title="Phase 3 Verified Causal & Impact Edges">
+        <span class="w-2 h-2 rounded-full bg-rose-400 animate-pulse"></span>
+        <span class="text-rose-300 font-semibold">Causal:</span>
+        <span id="statCausal" class="font-bold text-rose-300">127</span>
+      </div>
+      <div class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-1.5" title="Country Rule-Based Related Edges">
+        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+        <span class="text-slate-400">Related:</span>
+        <span id="statRelated" class="font-bold text-amber-300">4,241</span>
+      </div>
+      <div class="px-2 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center space-x-1.5" title="Articles Ingested">
+        <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+        <span class="text-slate-400">Articles:</span>
+        <span id="statArticles" class="font-bold text-white">10,945</span>
+      </div>
+    </div>
+
+    <!-- Quick Navigation Links -->
+    <div class="flex items-center space-x-3">
+      <a href="/articles" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white transition-colors border border-slate-700 flex items-center space-x-1.5">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+        <span>Articles UI</span>
+      </a>
+      <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white transition-colors border border-slate-700">
+        API Docs
+      </a>
+    </div>
+  </header>
+
+  <!-- Main View Grid (Sidebar + Center Content + Inspector Drawer) -->
+  <div class="flex-1 min-h-0 h-[calc(100vh-4rem)] flex overflow-hidden relative">
+
+    <!-- LEFT SIDEBAR: Tri-Tab Directory (Stories / Entities / Phase 3 Causal) -->
+    <aside class="w-80 md:w-96 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20 h-full min-h-0">
+      
+      <!-- Sidebar Tab Switcher -->
+      <div class="p-2.5 border-b border-slate-800 bg-slate-900 flex space-x-1.5 shrink-0">
+        <button id="sidebarTabStories" onclick="switchSidebarTab('stories')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-sky-600 text-white shadow-sm transition-all flex items-center justify-center space-x-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364-6.364l-2.121 2.121m-8.486 8.486l-2.121 2.121m12.728 0l-2.121-2.121m-8.486-8.486L5.636 5.636"/></svg>
+          <span>Stories</span>
+        </button>
+        <button id="sidebarTabEntities" onclick="switchSidebarTab('entities')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white bg-slate-950 border border-slate-800 transition-all flex items-center justify-center space-x-1">
+          <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          <span>Entities</span>
+        </button>
+        <button id="sidebarTabCausal" onclick="switchSidebarTab('causal')" class="flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium text-rose-400 hover:text-white bg-slate-950 border border-rose-900/40 transition-all flex items-center justify-center space-x-1">
+          <svg class="w-3 h-3 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span>Causal AI</span>
+        </button>
+      </div>
+
+      <!-- PANEL 1: Stories Directory View -->
+      <div id="storiesPanel" class="flex-1 min-h-0 flex flex-col">
+        <!-- Search & Filters Header -->
+        <div class="p-3 border-b border-slate-800 space-y-2.5 bg-slate-900/95 shrink-0">
+          <div class="relative">
+            <input
+              id="searchInput"
+              type="text"
+              placeholder="Search stories & narratives..."
+              class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          <!-- Filter Pills -->
+          <div class="flex items-center justify-between text-xs pt-0.5">
+            <span class="text-slate-400 font-medium">Filter:</span>
+            <div class="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+              <button id="filterAll" onclick="setStoryFilter(1)" class="px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500 text-white transition-colors">
+                All
+              </button>
+              <button id="filterMulti" onclick="setStoryFilter(2)" class="px-2 py-0.5 rounded text-[11px] font-medium text-slate-400 hover:text-white transition-colors">
+                Multi-day (≥2)
+              </button>
+              <button id="filterDeep" onclick="setStoryFilter(5)" class="px-2 py-0.5 rounded text-[11px] font-medium text-slate-400 hover:text-white transition-colors">
+                Evolving (≥5)
+              </button>
+            </div>
+          </div>
+
+          <!-- Date Filter Dropdown -->
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">Date Range:</span>
+            <select id="dateSelect" onchange="onDateChange()" class="bg-slate-950 text-slate-300 border border-slate-800 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500">
+              <option value="">All Dates (30 Days)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Story Items List -->
+        <div id="storyList" class="flex-1 min-h-0 overflow-y-auto scroll-panel divide-y divide-slate-800/60 p-2 space-y-1">
+          <div class="p-8 text-center text-xs text-slate-500">
+            Loading Phase 1 Stories...
+          </div>
+        </div>
+
+        <!-- Story List Footer -->
+        <div class="p-2.5 border-t border-slate-800 bg-slate-950/70 text-xs text-slate-400 flex items-center justify-between shrink-0">
+          <span id="storyCountLabel">Showing 0 stories</span>
+          <button onclick="loadStories()" class="text-sky-400 hover:text-sky-300 flex items-center space-x-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Entities Directory View -->
+      <div id="entitiesPanel" class="hidden flex-1 min-h-0 flex flex-col">
+        <!-- Entity Search & Type Filter -->
+        <div class="p-3 border-b border-slate-800 space-y-2.5 bg-slate-900/95 shrink-0">
+          <div class="relative">
+            <input
+              id="entitySearchInput"
+              type="text"
+              placeholder="Search entities (e.g. TSMC, Biden)..."
+              class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+            <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          <!-- Entity Type Filter Chips -->
+          <div class="flex flex-wrap gap-1 text-[11px] pt-0.5">
+            <button onclick="setEntityTypeFilter('')" class="entity-type-btn px-2 py-0.5 rounded bg-emerald-600 text-white font-medium" data-type="">All</button>
+            <button onclick="setEntityTypeFilter('Country')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Country">Country</button>
+            <button onclick="setEntityTypeFilter('Company')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Company">Company</button>
+            <button onclick="setEntityTypeFilter('Person')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Person">Person</button>
+            <button onclick="setEntityTypeFilter('Organization')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Organization">Org</button>
+            <button onclick="setEntityTypeFilter('Industry')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Industry">Industry</button>
+            <button onclick="setEntityTypeFilter('Commodity')" class="entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white" data-type="Commodity">Commodity</button>
+          </div>
+        </div>
+
+        <!-- Entity Items List -->
+        <div id="entityList" class="flex-1 min-h-0 overflow-y-auto scroll-panel divide-y divide-slate-800/60 p-2 space-y-1">
+          <div class="p-8 text-center text-xs text-slate-500">
+            Loading Phase 2 Entities...
+          </div>
+        </div>
+
+        <!-- Entity List Footer -->
+        <div class="p-2.5 border-t border-slate-800 bg-slate-950/70 text-xs text-slate-400 flex items-center justify-between shrink-0">
+          <span id="entityCountLabel">Showing 0 entities</span>
+          <button onclick="loadEntities()" class="text-emerald-400 hover:text-emerald-300 flex items-center space-x-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Phase 3 Causal & Intelligence View -->
+      <div id="causalPanel" class="hidden flex-1 min-h-0 flex flex-col">
+        <!-- Sub-Mode Selector Header -->
+        <div class="p-2.5 border-b border-slate-800 bg-slate-900/95 shrink-0 space-y-2">
+          <div class="grid grid-cols-4 gap-1 text-[10px] font-semibold text-center">
+            <button id="causalModeFeed" onclick="switchCausalMode('feed')" class="py-1 px-1 rounded bg-rose-600 text-white truncate shadow-sm transition-all">
+              Edges Feed
+            </button>
+            <button id="causalModeInvestigate" onclick="switchCausalMode('investigate')" class="py-1 px-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 truncate transition-all">
+              UC-01 Multi-Hop
+            </button>
+            <button id="causalModeImpact" onclick="switchCausalMode('impact')" class="py-1 px-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 truncate transition-all">
+              UC-02 Impact
+            </button>
+            <button id="causalModeConnect" onclick="switchCausalMode('connect')" class="py-1 px-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 truncate transition-all">
+              UC-03 Connect
+            </button>
+          </div>
+
+          <!-- Mode Feed: Edge Type Filter Chips -->
+          <div id="causalFeedFilters" class="space-y-1.5">
+            <div class="flex flex-wrap gap-1 text-[10px]">
+              <button onclick="setCausalEdgeFilter('')" class="causal-filter-btn px-2 py-0.5 rounded bg-rose-600 text-white font-medium" data-type="">All</button>
+              <button onclick="setCausalEdgeFilter('CAUSED')" class="causal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-rose-300 hover:text-white border border-rose-900/40" data-type="CAUSED">CAUSED</button>
+              <button onclick="setCausalEdgeFilter('CONTRIBUTED_TO')" class="causal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-amber-300 hover:text-white border border-amber-900/40" data-type="CONTRIBUTED_TO">CONTRIBUTED_TO</button>
+              <button onclick="setCausalEdgeFilter('AFFECTS')" class="causal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-purple-300 hover:text-white border border-purple-900/40" data-type="AFFECTS">AFFECTS</button>
+              <button onclick="setCausalEdgeFilter('IMPACTED')" class="causal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-cyan-300 hover:text-white border border-cyan-900/40" data-type="IMPACTED">IMPACTED</button>
+            </div>
+          </div>
+
+          <!-- Mode Investigate: Input & Hops -->
+          <div id="causalInvestigateFilters" class="hidden space-y-2 text-xs">
+            <div class="relative">
+              <input id="investigateEventInput" type="text" placeholder="Enter Event ID (e.g. evt_2026-09-08_0)..." class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500">
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-1 text-[11px] text-slate-400">
+                <span>Hops:</span>
+                <select id="investigateHopsSelect" class="bg-slate-950 border border-slate-800 text-slate-300 rounded px-1.5 py-0.5 text-[11px]">
+                  <option value="1">1 Hop</option>
+                  <option value="2" selected>2 Hops (Default)</option>
+                  <option value="3">3 Hops</option>
+                </select>
+              </div>
+              <button onclick="runInvestigate()" class="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-medium text-[11px] flex items-center space-x-1 shadow-sm transition-colors">
+                <span>Investigate</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode Impact: Input & Hops -->
+          <div id="causalImpactFilters" class="hidden space-y-2 text-xs">
+            <div class="relative">
+              <input id="impactEventInput" type="text" placeholder="Enter Event ID to trace impact..." class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500">
+            </div>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-1 text-[11px] text-slate-400">
+                <span>Radius:</span>
+                <select id="impactHopsSelect" class="bg-slate-950 border border-slate-800 text-slate-300 rounded px-1.5 py-0.5 text-[11px]">
+                  <option value="1">1-Hop</option>
+                  <option value="2" selected>2-Hop BFS</option>
+                  <option value="3">3-Hop BFS</option>
+                </select>
+              </div>
+              <button onclick="runImpactRadius()" class="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-[11px] flex items-center space-x-1 shadow-sm transition-colors">
+                <span>Trace Radius</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode Connect: Two Event Inputs -->
+          <div id="causalConnectFilters" class="hidden space-y-2 text-xs">
+            <input id="connectSourceInput" type="text" placeholder="Source Event ID (e.g. evt_...)" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500">
+            <input id="connectTargetInput" type="text" placeholder="Target Event ID (e.g. evt_...)" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-500">
+            <button onclick="runConnectDots()" class="w-full py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium text-[11px] shadow-sm transition-colors">
+              Find Causal Path (UC-03)
+            </button>
+          </div>
+        </div>
+
+        <!-- Causal Items / Results List -->
+        <div id="causalList" class="flex-1 min-h-0 overflow-y-auto scroll-panel divide-y divide-slate-800/60 p-2 space-y-1.5">
+          <div class="p-8 text-center text-xs text-slate-500">
+            Loading Phase 3 Causal Intelligence...
+          </div>
+        </div>
+
+        <!-- Causal List Footer -->
+        <div class="p-2.5 border-t border-slate-800 bg-slate-950/70 text-xs text-slate-400 flex items-center justify-between shrink-0">
+          <span id="causalCountLabel">Showing 0 edges</span>
+          <button onclick="loadCausalFeed()" class="text-rose-400 hover:text-rose-300 flex items-center space-x-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER CANVAS & TIMELINE AREA -->
+    <main class="flex-1 min-h-0 h-full flex flex-col bg-slate-950 overflow-hidden relative">
+
+      <!-- Canvas Toolbar & Tab Switches -->
+      <div class="h-12 bg-slate-900/60 border-b border-slate-800 flex items-center justify-between px-6 z-10 shrink-0">
+        <!-- Story Title and View Tabs -->
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <button id="tabGraphBtn" onclick="switchView('graph')" class="px-3 py-1 rounded-md text-xs font-semibold bg-sky-600 text-white flex items-center space-x-1.5 shadow-sm transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364-6.364l-2.121 2.121m-8.486 8.486l-2.121 2.121m12.728 0l-2.121-2.121m-8.486-8.486L5.636 5.636"/></svg>
+              <span>Graph Canvas</span>
+            </button>
+            <button id="tabTimelineBtn" onclick="switchView('timeline')" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white flex items-center space-x-1.5 transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Story Evolution Timeline</span>
+            </button>
+          </div>
+
+          <div id="activeStoryBadge" class="hidden md:flex items-center space-x-2 text-xs truncate max-w-md">
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            <span id="activeStoryTitle" class="text-slate-300 font-medium truncate">Select a story or entity to visualize</span>
+          </div>
+        </div>
+
+        <!-- Graph Controls & Phase 2 / Phase 3 Toggles -->
+        <div class="flex items-center space-x-3 text-xs">
+          <!-- Toggle Phase 3 Causal Links -->
+          <label class="flex items-center space-x-1.5 cursor-pointer text-slate-400 hover:text-slate-200" title="Toggle Phase 3 verified causal edges (CAUSED, CONTRIBUTED_TO, AFFECTS)">
+            <input type="checkbox" id="toggleCausalCheck" checked onchange="reloadCurrentGraph()" class="rounded bg-slate-950 border-slate-700 text-rose-500 focus:ring-0">
+            <span class="text-[11px] text-rose-400 font-semibold">Causal Links</span>
+          </label>
+
+          <!-- Toggle Phase 2 Entities -->
+          <label class="flex items-center space-x-1.5 cursor-pointer text-slate-400 hover:text-slate-200" title="Toggle Phase 2 extracted typed entities">
+            <input type="checkbox" id="toggleEntitiesCheck" checked onchange="reloadCurrentGraph()" class="rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-0">
+            <span class="text-[11px] text-emerald-400 font-medium">Entities</span>
+          </label>
+
+          <!-- Toggle Related Edges -->
+          <label class="flex items-center space-x-1.5 cursor-pointer text-slate-400 hover:text-slate-200" title="Toggle rule-based country RELATED_TO links">
+            <input type="checkbox" id="toggleRelatedCheck" checked onchange="reloadCurrentGraph()" class="rounded bg-slate-950 border-slate-700 text-amber-500 focus:ring-0">
+            <span class="text-[11px] text-amber-400 font-medium">Related</span>
+          </label>
+
+          <!-- Toggle Articles and Sources -->
+          <label class="flex items-center space-x-1.5 cursor-pointer text-slate-400 hover:text-slate-200">
+            <input type="checkbox" id="toggleArticlesCheck" checked onchange="reloadCurrentGraph()" class="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0">
+            <span class="text-[11px]">Articles</span>
+          </label>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <!-- Fit View Button -->
+          <button onclick="fitGraphView()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition-colors flex items-center space-x-1" title="Fit Entire Graph">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            <span>Fit</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Graph Container -->
+      <div id="graphContainer" class="flex-1 min-h-0 w-full h-full relative">
+        <div id="visNetwork" class="w-full h-full"></div>
+
+        <!-- Graph Legend Overlay (Bottom-Left) -->
+        <div class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 rounded-xl text-xs space-y-1.5 shadow-xl pointer-events-auto z-10 max-h-80 overflow-y-auto scroll-panel">
+          <div class="font-semibold text-slate-300 text-[11px] uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Graph Legend</span>
+            <span class="text-[10px] text-rose-400 font-mono">Phase 1, 2 & 3</span>
+          </div>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-purple-500 inline-block shrink-0"></span>
+              <span class="text-slate-300">:Story</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded-full bg-sky-400 inline-block shrink-0"></span>
+              <span class="text-slate-300">:Event</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-emerald-500 inline-block shrink-0"></span>
+              <span class="text-emerald-300">:Country</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded-full bg-blue-500 inline-block shrink-0"></span>
+              <span class="text-blue-300">:Company</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded-full bg-amber-500 inline-block shrink-0"></span>
+              <span class="text-amber-300">:Person</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-rose-500 inline-block shrink-0"></span>
+              <span class="text-rose-300">:Org</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-violet-500 inline-block shrink-0"></span>
+              <span class="text-violet-300">:Industry</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-yellow-500 inline-block shrink-0"></span>
+              <span class="text-yellow-300">:Commodity</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-3 h-3 rounded bg-teal-500 inline-block shrink-0"></span>
+              <span class="text-teal-300">:Statement</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-teal-400 inline-block shrink-0"></span>
+              <span class="text-slate-400">:Article</span>
+            </div>
+          </div>
+          <div class="pt-1.5 border-t border-slate-800 text-[10px] space-y-0.5">
+            <div class="font-semibold text-rose-400 text-[10px] mb-0.5 uppercase tracking-wider">Causal & Temporal Links</div>
+            <div><span class="text-rose-500 font-bold">⇒</span> <span class="text-rose-400 font-semibold">CAUSED</span> (direct causal chain)</div>
+            <div><span class="text-amber-400 font-bold">⇢</span> <span class="text-amber-300 font-semibold">CONTRIBUTED_TO</span> (escalation factor)</div>
+            <div><span class="text-purple-400 font-bold">⇢</span> <span class="text-purple-300 font-semibold">AFFECTS</span> (downstream impact)</div>
+            <div><span class="text-cyan-400 font-bold">⇢</span> <span class="text-cyan-300 font-semibold">IMPACTED</span> (entity affected)</div>
+            <div><span class="text-sky-400 font-bold">→</span> <span class="text-sky-300">PRECEDED</span> (temporal sequence)</div>
+            <div><span class="text-amber-500/70 font-bold">⤑</span> <span class="text-amber-400/80">RELATED_TO</span> (country co-occurrence)</div>
+          </div>
+        </div>
+
+        <!-- Empty State Prompt -->
+        <div id="emptyPrompt" class="hidden absolute inset-0 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm z-20">
+          <div class="max-w-md text-center space-y-3">
+            <div class="w-12 h-12 mx-auto rounded-full bg-sky-500/10 flex items-center justify-center text-sky-400">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <h3 class="text-base font-semibold text-white">Select a Story or Entity</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Explore multi-day event progression, sequential <span class="text-sky-400">PRECEDED</span> links, and Phase 2 typed <span class="text-emerald-400">Entities</span> (:Country, :Company, :Person, :Organization, :Industry).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Evolution Container (Alternative Tab) -->
+      <div id="timelineContainer" class="hidden flex-1 min-h-0 w-full h-full overflow-y-auto scroll-panel p-6 md:p-8 space-y-6">
+        <div id="timelineHeader" class="max-w-3xl mx-auto space-y-2">
+          <h2 id="timelineStoryTitle" class="text-lg font-bold text-white">Story Timeline</h2>
+          <p id="timelineStoryMeta" class="text-xs text-slate-400">Chronological progression of clustered events</p>
+        </div>
+        <div id="timelineEventsList" class="max-w-3xl mx-auto space-y-6 relative border-l-2 border-slate-800 ml-4 md:ml-auto pl-6 pb-12">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT INSPECTOR DRAWER: Entity/Event/Story Details -->
+    <aside id="inspectorDrawer" class="w-80 md:w-96 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-20 h-full min-h-0 overflow-hidden transition-transform duration-300">
+      
+      <!-- Drawer Header -->
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/95 sticky top-0 z-10 shrink-0">
+        <div class="flex items-center space-x-2">
+          <span id="drawerBadge" class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30">
+            Node Inspector
+          </span>
+        </div>
+        <span class="text-xs text-slate-400 font-mono" id="drawerId">#selection</span>
+      </div>
+
+      <!-- Drawer Content -->
+      <div id="drawerContent" class="p-5 space-y-5 text-xs text-slate-300 flex-1 min-h-0 overflow-y-auto scroll-panel">
+        <div class="text-center py-12 text-slate-500">
+          <svg class="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
+          <p>Click any node or event in the graph or timeline to inspect full details, Phase 2 entities, official statements, and reporting articles.</p>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Client-side Logic -->
+  <script>
+    let network = null;
+    let currentStoryId = null;
+    let currentEntityName = null;
+    let currentView = 'graph';
+    let storiesData = [];
+    let entitiesData = [];
+    let activeFilterMinEvents = 1;
+    let activeDateFilter = '';
+    let activeEntityTypeFilter = '';
+    let searchDebounceTimer = null;
+    let entitySearchTimer = null;
+
+    // Node Style Presets for Vis-Network
+    const GROUP_STYLES = {
+      story: {
+        shape: 'hexagon',
+        color: { background: '#8b5cf6', border: '#a78bfa', highlight: { background: '#7c3aed', border: '#c4b5fd' } },
+        font: { color: '#ffffff', size: 14, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 2,
+        shadow: true,
+      },
+      event: {
+        shape: 'dot',
+        color: { background: '#0284c7', border: '#38bdf8', highlight: { background: '#0369a1', border: '#7dd3fc' } },
+        font: { color: '#e2e8f0', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 2,
+        shadow: true,
+      },
+      country: {
+        shape: 'box',
+        color: { background: '#059669', border: '#34d399', highlight: { background: '#047857', border: '#6ee7b7' } },
+        font: { color: '#ecfdf5', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      company: {
+        shape: 'dot',
+        color: { background: '#2563eb', border: '#60a5fa', highlight: { background: '#1d4ed8', border: '#93c5fd' } },
+        font: { color: '#eff6ff', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+      },
+      person: {
+        shape: 'dot',
+        color: { background: '#d97706', border: '#fbbf24', highlight: { background: '#b45309', border: '#fcd34d' } },
+        font: { color: '#fffbeb', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+      },
+      organization: {
+        shape: 'box',
+        color: { background: '#e11d48', border: '#fb7185', highlight: { background: '#be123c', border: '#fda4af' } },
+        font: { color: '#fff1f2', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      industry: {
+        shape: 'diamond',
+        color: { background: '#7c3aed', border: '#a78bfa', highlight: { background: '#6d28d9', border: '#c4b5fd' } },
+        font: { color: '#f5f3ff', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+      },
+      commodity: {
+        shape: 'star',
+        color: { background: '#ca8a04', border: '#facc15', highlight: { background: '#a16207', border: '#fef08a' } },
+        font: { color: '#fefce8', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+      },
+      location: {
+        shape: 'box',
+        color: { background: '#65a30d', border: '#a3e635', highlight: { background: '#4d7c0f', border: '#bef264' } },
+        font: { color: '#f7fee7', size: 11, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+        borderRadius: 4,
+      },
+      statement: {
+        shape: 'box',
+        color: { background: '#0d9488', border: '#2dd4bf', highlight: { background: '#0f766e', border: '#5eead4' } },
+        font: { color: '#f0fdfa', size: 10, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1.5,
+        borderRadius: 6,
+      },
+      article: {
+        shape: 'dot',
+        color: { background: '#0f766e', border: '#14b8a6', highlight: { background: '#115e59', border: '#2dd4bf' } },
+        font: { color: '#94a3b8', size: 9, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1,
+      },
+      source: {
+        shape: 'box',
+        color: { background: '#b45309', border: '#fbbf24', highlight: { background: '#92400e', border: '#fcd34d' } },
+        font: { color: '#fef3c7', size: 10, face: 'Inter, system-ui, sans-serif' },
+        borderWidth: 1,
+        borderRadius: 4,
+      }
+    };
+
+    let activeCausalEdgeFilter = '';
+    let currentCausalMode = 'feed';
+    let causalFeedData = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadStats();
+      await loadDates();
+      await loadStories();
+      await loadEntities();
+      await loadCausalFeed();
+
+      document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+          loadStories(e.target.value.trim());
+        }, 300);
+      });
+
+      document.getElementById('entitySearchInput').addEventListener('input', (e) => {
+        clearTimeout(entitySearchTimer);
+        entitySearchTimer = setTimeout(() => {
+          loadEntities(e.target.value.trim());
+        }, 300);
+      });
+    });
+
+    // Sidebar Tab Switching
+    function switchSidebarTab(tab) {
+      const sTab = document.getElementById('sidebarTabStories');
+      const eTab = document.getElementById('sidebarTabEntities');
+      const cTab = document.getElementById('sidebarTabCausal');
+      const sPanel = document.getElementById('storiesPanel');
+      const ePanel = document.getElementById('entitiesPanel');
+      const cPanel = document.getElementById('causalPanel');
+
+      // Reset all buttons
+      [sTab, eTab, cTab].forEach(btn => {
+        btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white bg-slate-950 border border-slate-800 transition-all flex items-center justify-center space-x-1';
+      });
+      sPanel.classList.add('hidden');
+      ePanel.classList.add('hidden');
+      cPanel.classList.add('hidden');
+
+      if (tab === 'stories') {
+        sTab.className = 'flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-sky-600 text-white shadow-sm transition-all flex items-center justify-center space-x-1';
+        sPanel.classList.remove('hidden');
+      } else if (tab === 'entities') {
+        eTab.className = 'flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-emerald-600 text-white shadow-sm transition-all flex items-center justify-center space-x-1';
+        ePanel.classList.remove('hidden');
+      } else if (tab === 'causal') {
+        cTab.className = 'flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold bg-rose-600 text-white shadow-sm transition-all flex items-center justify-center space-x-1';
+        cPanel.classList.remove('hidden');
+      }
+    }
+
+    // Phase 3 Sub-mode switching
+    function switchCausalMode(mode) {
+      currentCausalMode = mode;
+      const modes = ['feed', 'investigate', 'impact', 'connect'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`causalMode${m.charAt(0).toUpperCase() + m.slice(1)}`);
+        const filters = document.getElementById(`causal${m.charAt(0).toUpperCase() + m.slice(1)}Filters`);
+        if (btn) {
+          if (m === mode) {
+            btn.className = 'py-1 px-1 rounded bg-rose-600 text-white truncate shadow-sm transition-all font-semibold';
+          } else {
+            btn.className = 'py-1 px-1 rounded bg-slate-950 text-slate-400 hover:text-white border border-slate-800 truncate transition-all';
+          }
+        }
+        if (filters) {
+          if (m === mode) filters.classList.remove('hidden');
+          else filters.classList.add('hidden');
+        }
+      });
+
+      if (mode === 'feed') {
+        loadCausalFeed();
+      }
+    }
+
+    // 1. Fetch Stats (Phase 1, Phase 2 & Phase 3)
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/v1/phase1/stats');
+        const data = await res.json();
+        const gs = data.graph_stats || {};
+        const p2 = data.phase2_stats || {};
+        const p3 = data.phase3_stats || {};
+
+        if (gs.stories) document.getElementById('statStories').textContent = Number(gs.stories).toLocaleString();
+        if (gs.events) document.getElementById('statEvents').textContent = Number(gs.events).toLocaleString();
+        if (gs.articles) document.getElementById('statArticles').textContent = Number(gs.articles).toLocaleString();
+
+        if (p2.entities_total) document.getElementById('statEntities').textContent = Number(p2.entities_total).toLocaleString();
+        if (p2.related_to_edges) document.getElementById('statRelated').textContent = Number(p2.related_to_edges).toLocaleString();
+
+        const causalTotal = (p3.caused_edges || 0) + (p3.contributed_to_edges || 0) + (p3.affects_edges || 0) + (p3.impacted_edges || 0);
+        document.getElementById('statCausal').textContent = Number(causalTotal).toLocaleString();
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    // 2. Fetch Dates
+    async function loadDates() {
+      try {
+        const res = await fetch('/api/v1/phase1/dates');
+        const dates = await res.json();
+        const select = document.getElementById('dateSelect');
+        dates.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.date;
+          opt.textContent = `${d.date} (${d.event_count} events)`;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Failed to load dates:', err);
+      }
+    }
+
+    // 3. Fetch Stories
+    async function loadStories(searchTerm = '') {
+      const container = document.getElementById('storyList');
+      container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">Searching stories...</div>';
+
+      try {
+        let url = `/api/v1/phase1/stories?min_events=${activeFilterMinEvents}&limit=50`;
+        if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+        if (activeDateFilter) url += `&date=${encodeURIComponent(activeDateFilter)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        storiesData = data.stories || [];
+
+        document.getElementById('storyCountLabel').textContent = `Showing ${storiesData.length} of ${data.total || storiesData.length} stories`;
+
+        if (storiesData.length === 0) {
+          container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">No matching stories found.</div>';
+          return;
+        }
+
+        container.innerHTML = '';
+        storiesData.forEach((st) => {
+          const isSelected = st.story_id === currentStoryId;
+          const card = document.createElement('div');
+          card.className = `p-3.5 rounded-xl cursor-pointer transition-all border ${
+            isSelected
+              ? 'bg-sky-950/40 border-sky-500/60 shadow-lg shadow-sky-500/10'
+              : 'bg-slate-950/60 hover:bg-slate-800/60 border-slate-800/80'
+          }`;
+          card.onclick = () => selectStory(st.story_id);
+
+          const eventBadgeColor = st.event_count > 4 ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' :
+                                  st.event_count > 1 ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' :
+                                  'bg-slate-800 text-slate-400 border-slate-700';
+
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2 mb-1.5">
+              <h4 class="text-xs font-semibold text-slate-200 line-clamp-2 leading-snug hover:text-white">
+                ${st.title}
+              </h4>
+              <span class="shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-bold ${eventBadgeColor}">
+                ${st.event_count} ${st.event_count === 1 ? 'event' : 'events'}
+              </span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mt-2">
+              <span class="flex items-center space-x-1">
+                <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+                <span>${st.article_count} articles</span>
+              </span>
+              <span class="text-slate-500 font-mono text-[10px]">
+                ${st.start_date === st.end_date ? st.start_date : `${st.start_date.slice(5)} → ${st.end_date.slice(5)}`}
+              </span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
+        if (!currentStoryId && !currentEntityName && storiesData.length > 0) {
+          selectStory(storiesData[0].story_id);
+        }
+
+      } catch (err) {
+        console.error('Failed to load stories:', err);
+        container.innerHTML = '<div class="p-6 text-center text-xs text-rose-400">Error loading stories.</div>';
+      }
+    }
+
+    // 4. Fetch Phase 2 Entities
+    async function loadEntities(searchTerm = '') {
+      const container = document.getElementById('entityList');
+      container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">Searching entities...</div>';
+
+      try {
+        let url = `/api/v1/phase1/entities?limit=60`;
+        if (activeEntityTypeFilter) url += `&entity_type=${encodeURIComponent(activeEntityTypeFilter)}`;
+        if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        entitiesData = data.entities || [];
+
+        document.getElementById('entityCountLabel').textContent = `Showing ${entitiesData.length} of ${data.total || entitiesData.length} entities`;
+
+        if (entitiesData.length === 0) {
+          container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">No entities found.</div>';
+          return;
+        }
+
+        container.innerHTML = '';
+        entitiesData.forEach((ent) => {
+          const isSelected = ent.canonical_name === currentEntityName;
+          const card = document.createElement('div');
+          card.className = `p-3 rounded-xl cursor-pointer transition-all border ${
+            isSelected
+              ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-500/10'
+              : 'bg-slate-950/60 hover:bg-slate-800/60 border-slate-800/80'
+          }`;
+          card.onclick = () => selectEntity(ent.canonical_name);
+
+          const typeColors = {
+            Country: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+            Company: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+            Person: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+            Organization: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+            Industry: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+            Commodity: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+            Location: 'bg-lime-500/20 text-lime-300 border-lime-500/30',
+          };
+          const badgeClass = typeColors[ent.type] || 'bg-slate-800 text-slate-400 border-slate-700';
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <h4 class="text-xs font-semibold text-slate-200 line-clamp-1 hover:text-emerald-400 transition-colors">
+                ${ent.canonical_name}
+              </h4>
+              <span class="shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-bold ${badgeClass}">
+                ${ent.type}
+              </span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+              <span class="text-slate-400 font-medium">${ent.event_count} ${ent.event_count === 1 ? 'event link' : 'event links'}</span>
+              ${ent.aliases && ent.aliases.length > 0 ? `
+                <span class="text-[10px] text-slate-500 truncate max-w-[140px]" title="Aliases: ${ent.aliases.join(', ')}">
+                  aka ${ent.aliases[0]}
+                </span>
+              ` : ''}
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
+      } catch (err) {
+        console.error('Failed to load entities:', err);
+        container.innerHTML = '<div class="p-6 text-center text-xs text-rose-400">Error loading entities.</div>';
+      }
+    }
+
+    function setEntityTypeFilter(type) {
+      activeEntityTypeFilter = type;
+      document.querySelectorAll('.entity-type-btn').forEach(btn => {
+        if (btn.dataset.type === type) {
+          btn.className = 'entity-type-btn px-2 py-0.5 rounded bg-emerald-600 text-white font-medium';
+        } else {
+          btn.className = 'entity-type-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white';
+        }
+      });
+      loadEntities(document.getElementById('entitySearchInput').value.trim());
+    }
+
+    // 5. Select and Render Story Graph & Timeline
+    async function selectStory(storyId) {
+      currentStoryId = storyId;
+      currentEntityName = null;
+      document.getElementById('emptyPrompt').classList.add('hidden');
+
+      const targetStory = storiesData.find(s => s.story_id === storyId);
+      if (targetStory) {
+        document.getElementById('activeStoryTitle').textContent = targetStory.title;
+        document.getElementById('timelineStoryTitle').textContent = targetStory.title;
+        document.getElementById('timelineStoryMeta').textContent = `${targetStory.event_count} events · ${targetStory.article_count} articles · Span: ${targetStory.start_date} to ${targetStory.end_date}`;
+      }
+
+      await reloadCurrentGraph();
+    }
+
+    // 6. Select and Render Entity Ego-Network Graph
+    async function selectEntity(canonicalName) {
+      currentEntityName = canonicalName;
+      currentStoryId = null;
+      document.getElementById('emptyPrompt').classList.add('hidden');
+
+      document.getElementById('activeStoryTitle').innerHTML = `<span class="text-emerald-400 font-bold">Entity:</span> ${canonicalName}`;
+
+      try {
+        const res = await fetch(`/api/v1/phase1/entity/${encodeURIComponent(canonicalName)}/graph?max_events=15`);
+        const graphData = await res.json();
+        renderVisGraph(graphData);
+        inspectEntity(canonicalName, graphData.entity);
+      } catch (err) {
+        console.error('Failed to load entity graph:', err);
+      }
+    }
+
+    async function reloadCurrentGraph() {
+      if (currentEntityName) {
+        return selectEntity(currentEntityName);
+      }
+      if (!currentStoryId) return;
+
+      const includeArticles = document.getElementById('toggleArticlesCheck').checked;
+      const includeEntities = document.getElementById('toggleEntitiesCheck').checked;
+      const includeRelated = document.getElementById('toggleRelatedCheck').checked;
+      const includeCausal = document.getElementById('toggleCausalCheck') ? document.getElementById('toggleCausalCheck').checked : true;
+
+      try {
+        const url = `/api/v1/phase1/story/${currentStoryId}/graph?include_articles=${includeArticles}&include_entities=${includeEntities}&include_related=${includeRelated}&max_articles_per_event=4&max_entities_per_event=6`;
+        const res = await fetch(url);
+        const graphData = await res.json();
+
+        // Filter out causal edges if toggle unchecked
+        if (!includeCausal && graphData.edges) {
+          graphData.edges = graphData.edges.filter(e => !['CAUSED', 'CONTRIBUTED_TO', 'AFFECTS', 'IMPACTED'].includes(e.label));
+        }
+
+        renderVisGraph(graphData);
+        renderTimeline(graphData);
+        inspectStory(graphData.story, graphData.events);
+
+      } catch (err) {
+        console.error('Failed to load story graph:', err);
+      }
+    }
+
+    // 7. Vis.js Network Rendering
+    function renderVisGraph(graphData) {
+      const container = document.getElementById('visNetwork');
+
+      const nodes = new vis.DataSet(graphData.nodes.map(n => {
+        const style = GROUP_STYLES[n.group] || GROUP_STYLES.event;
+        return {
+          id: n.id,
+          label: n.label,
+          group: n.group,
+          title: n.title,
+          size: n.size || 20,
+          raw: n,
+          ...style,
+        };
+      }));
+
+      const edges = new vis.DataSet(graphData.edges.map(e => ({
+        id: e.id || `${e.from}_${e.label}_${e.to}`,
+        from: e.from,
+        to: e.to,
+        label: e.label,
+        title: e.title,
+        arrows: 'to',
+        dashes: e.dashes || false,
+        color: e.color || { color: '#475569', highlight: '#38bdf8' },
+        width: e.width || 1.5,
+        font: { size: 9, color: '#94a3b8', strokeWidth: 0, align: 'top' },
+        raw: e,
+      })));
+
+      const options = {
+        nodes: {
+          shape: 'dot',
+          scaling: { min: 10, max: 40 },
+        },
+        edges: {
+          smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.15 },
+          arrowStrikethrough: false,
+        },
+        physics: {
+          barnesHut: {
+            gravitationalConstant: -3800,
+            centralGravity: 0.35,
+            springLength: 130,
+            springConstant: 0.04,
+            damping: 0.09,
+          },
+          stabilization: { iterations: 140 },
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 100,
+          zoomView: true,
+          dragView: true,
+        },
+      };
+
+      if (network) {
+        network.destroy();
+      }
+
+      network = new vis.Network(container, { nodes, edges }, options);
+
+      network.on('click', async (params) => {
+        if (params.nodes.length > 0) {
+          const selectedId = params.nodes[0];
+          const nodeData = nodes.get(selectedId);
+          if (nodeData) {
+            handleNodeClick(nodeData);
+          }
+        } else if (params.edges.length > 0) {
+          const selectedEdgeId = params.edges[0];
+          const edgeData = edges.get(selectedEdgeId);
+          if (edgeData && edgeData.raw) {
+            inspectEdge(edgeData.raw);
+          }
+        }
+      });
+    }
+
+    // 8. Node Inspector Logic
+    async function handleNodeClick(node) {
+      const group = node.group;
+      const raw = node.raw;
+
+      if (group === 'event') {
+        await inspectEvent(node.id);
+      } else if (group === 'story') {
+        inspectStory(raw);
+      } else if (['country', 'company', 'person', 'organization', 'industry', 'commodity', 'location'].includes(group)) {
+        inspectEntity(node.id, raw);
+      } else if (group === 'statement') {
+        inspectStatement(raw);
+      } else if (group === 'article') {
+        inspectArticle(raw);
+      } else if (group === 'source') {
+        inspectSource(raw);
+      }
+    }
+
+    async function inspectEvent(eventId) {
+      document.getElementById('drawerBadge').textContent = 'Event Node';
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30';
+      document.getElementById('drawerId').textContent = eventId;
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = '<div class="py-8 text-center text-slate-500">Loading event details...</div>';
+
+      try {
+        const res = await fetch(`/api/v1/phase1/event/${eventId}`);
+        const evt = await res.json();
+
+        // Phase 2: Entities Pills
+        let entitiesHtml = '';
+        if (evt.entities && evt.entities.length > 0) {
+          const typeColors = {
+            Country: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30',
+            Company: 'bg-blue-500/20 text-blue-300 border-blue-500/40 hover:bg-blue-500/30',
+            Person: 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30',
+            Organization: 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30',
+            Industry: 'bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30',
+            Commodity: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/30',
+            Location: 'bg-lime-500/20 text-lime-300 border-lime-500/40 hover:bg-lime-500/30',
+          };
+          entitiesHtml = `
+            <div class="pt-2 border-t border-slate-800">
+              <span class="text-[11px] font-semibold text-emerald-400 block mb-1.5 flex items-center justify-between">
+                <span>Phase 2 Typed Entities (${evt.entities.length})</span>
+                <span class="text-[10px] text-slate-500">Click to explore</span>
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                ${evt.entities.map(e => `
+                  <button onclick="selectEntity('${e.canonical_name.replace(/'/g, "\\'")}')" class="text-[11px] px-2 py-0.5 rounded-full border font-medium ${typeColors[e.type] || 'bg-slate-800 text-slate-300 border-slate-700'} transition-all cursor-pointer">
+                    ${e.canonical_name} <span class="text-[9px] opacity-75 font-normal">(${e.role})</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        // Phase 2: Related Events (rule-based country overlap)
+        let relatedHtml = '';
+        if (evt.related_events && evt.related_events.length > 0) {
+          relatedHtml = `
+            <div class="pt-2 border-t border-slate-800">
+              <span class="text-[11px] font-semibold text-amber-400 block mb-1">Rule-based Related Events (${evt.related_events.length}):</span>
+              <div class="space-y-1.5">
+                ${evt.related_events.map(r => `
+                  <div class="p-2 bg-slate-950/60 rounded border border-slate-800 hover:border-slate-700 cursor-pointer text-[11px]" onclick="inspectEvent('${r.event_id}')">
+                    <div class="text-slate-300 font-medium hover:text-amber-300">${r.title}</div>
+                    <div class="text-[10px] text-slate-500 flex items-center justify-between mt-1">
+                      <span>${r.occurred_at}</span>
+                      <span class="text-amber-400 font-mono">conf: ${(r.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        // Phase 2: Official Statements
+        let statementsHtml = '';
+        if (evt.statements && evt.statements.length > 0) {
+          statementsHtml = `
+            <div class="pt-2 border-t border-slate-800">
+              <span class="text-[11px] font-semibold text-teal-400 block mb-1">Official Statements (${evt.statements.length}):</span>
+              <div class="space-y-1.5">
+                ${evt.statements.map(s => `
+                  <div class="p-2.5 bg-teal-950/30 rounded border border-teal-500/30 text-[11px]">
+                    <p class="text-slate-300 italic">"${s.text}"</p>
+                    <div class="flex items-center justify-between text-[10px] text-teal-400 mt-1">
+                      <span>Issued: ${s.issued_at.slice(0, 10)}</span>
+                      ${s.source_url ? `<a href="${s.source_url}" target="_blank" class="underline hover:text-white">Source ↗</a>` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        let articlesHtml = '';
+        if (evt.articles && evt.articles.length > 0) {
+          articlesHtml = evt.articles.map(a => `
+            <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1.5 hover:border-slate-700 transition-colors">
+              <a href="${a.url}" target="_blank" class="text-xs font-semibold text-slate-200 hover:text-sky-400 transition-colors line-clamp-2">
+                ${a.title}
+              </a>
+              <p class="text-[11px] text-slate-400 line-clamp-2">${a.description || 'No description available'}</p>
+              <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1">
+                <span class="text-amber-400 font-medium">${a.source_name}</span>
+                <span class="bg-teal-950/80 border border-teal-500/30 px-1.5 py-0.5 rounded text-teal-300 font-mono">
+                  sim: ${(a.similarity * 100).toFixed(0)}%
+                </span>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Phase 3: Causal Links (Downstream Effects & Upstream Causes)
+        let causalHtml = '';
+        if (evt.causal_links) {
+          const cl = evt.causal_links;
+          const causes = cl.causes || [];
+          const causedBy = cl.caused_by || [];
+          const affects = cl.affects || [];
+          const totalCausal = causes.length + causedBy.length + affects.length;
+
+          if (totalCausal > 0) {
+            causalHtml = `
+              <div class="pt-2 border-t border-slate-800 space-y-2">
+                <span class="text-[11px] font-semibold text-rose-400 block flex items-center justify-between">
+                  <span>Phase 3 Causal Intelligence (${totalCausal})</span>
+                  <span class="text-[10px] text-slate-500 font-mono">Agent Inferred &amp; Verified</span>
+                </span>
+                
+                ${causes.length > 0 ? `
+                  <div class="space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-rose-400">Causes Downstream (${causes.length}):</span>
+                    ${causes.map(c => `
+                      <div class="p-2 bg-rose-950/30 rounded border border-rose-900/40 hover:border-rose-500/60 cursor-pointer text-[11px] space-y-0.5" onclick="inspectEvent('${c.target_id}')">
+                        <div class="text-rose-200 font-medium line-clamp-1 hover:text-white">${c.target_title || c.target_id}</div>
+                        <div class="text-[10px] text-slate-400 flex items-center justify-between">
+                          <span class="font-mono text-rose-400">${c.type}</span>
+                          <span class="text-slate-500">conf: ${(c.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                ${causedBy.length > 0 ? `
+                  <div class="space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-amber-400">Upstream Causes (${causedBy.length}):</span>
+                    ${causedBy.map(c => `
+                      <div class="p-2 bg-amber-950/30 rounded border border-amber-900/40 hover:border-amber-500/60 cursor-pointer text-[11px] space-y-0.5" onclick="inspectEvent('${c.source_id}')">
+                        <div class="text-amber-200 font-medium line-clamp-1 hover:text-white">${c.source_title || c.source_id}</div>
+                        <div class="text-[10px] text-slate-400 flex items-center justify-between">
+                          <span class="font-mono text-amber-400">${c.type}</span>
+                          <span class="text-slate-500">conf: ${(c.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                ${affects.length > 0 ? `
+                  <div class="space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-purple-400">Affected Entities / Sectors (${affects.length}):</span>
+                    <div class="flex flex-wrap gap-1">
+                      ${affects.map(a => `
+                        <button onclick="selectEntity('${a.canonical_name.replace(/'/g, "\\'")}')" class="text-[10px] px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800/60 hover:border-purple-400">
+                          ${a.canonical_name} <span class="opacity-75">(${(a.confidence * 100).toFixed(0)}%)</span>
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }
+        }
+
+        content.innerHTML = `
+          <div class="space-y-4">
+            <div>
+              <span class="text-[10px] text-slate-500 font-mono block">Occurred At: ${evt.occurred_at}</span>
+              <h3 class="text-sm font-bold text-white mt-1 leading-snug">${evt.title}</h3>
+              <span class="inline-block mt-2 px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                Category: ${evt.category}
+              </span>
+            </div>
+
+            <!-- Quick Action Buttons for Phase 3 Use Cases -->
+            <div class="grid grid-cols-2 gap-1.5 pt-1">
+              <button onclick="investigateSpecificEvent('${eventId}')" class="py-1.5 px-2 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white font-medium text-[11px] flex items-center justify-center space-x-1 transition-all">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>UC-01 Multi-Hop</span>
+              </button>
+              <button onclick="impactSpecificEvent('${eventId}')" class="py-1.5 px-2 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 text-white font-medium text-[11px] flex items-center justify-center space-x-1 transition-all">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>UC-02 Impact</span>
+              </button>
+            </div>
+
+            <div class="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
+              <span class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Micro-Cluster Summary</span>
+              <p class="text-xs text-slate-300 leading-relaxed">${evt.summary}</p>
+            </div>
+
+            ${causalHtml}
+            ${entitiesHtml}
+            ${relatedHtml}
+            ${statementsHtml}
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-300">Reporting Articles (${evt.articles ? evt.articles.length : 0})</span>
+              </div>
+              <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                ${articlesHtml}
+              </div>
+            </div>
+          </div>
+        `;
+
+      } catch (err) {
+        content.innerHTML = '<div class="py-8 text-center text-rose-400">Failed to load event details.</div>';
+      }
+    }
+
+    function inspectEntity(name, raw) {
+      document.getElementById('drawerBadge').textContent = `${raw.entity_type || raw.type || 'Entity'} Node`;
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+      document.getElementById('drawerId').textContent = name;
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] text-emerald-400 font-bold block uppercase tracking-wider">Phase 2 Typed Entity</span>
+            <h3 class="text-base font-bold text-white mt-1 leading-snug">${name}</h3>
+            <span class="inline-block mt-2 px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
+              Type: ${raw.entity_type || raw.type || 'Entity'}
+            </span>
+          </div>
+
+          ${raw.aliases && raw.aliases.length > 0 ? `
+            <div class="p-3 bg-slate-950/60 rounded-lg border border-slate-800 space-y-1">
+              <span class="text-[10px] uppercase font-bold text-slate-500 block">Recognized Aliases</span>
+              <p class="text-xs text-slate-300">${raw.aliases.join(', ')}</p>
+            </div>
+          ` : ''}
+
+          <div class="p-3 bg-slate-950/60 rounded-lg border border-slate-800 text-[11px] space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-500 block">Knowledge Graph Ego-Network</span>
+            <p class="text-slate-400 leading-relaxed">
+              Extracted via Groq LLM entity enrichment in Phase 2, normalized, and linked to events via <code class="text-sky-400">INVOLVES</code> relationships.
+            </p>
+            <button onclick="selectEntity('${name.replace(/'/g, "\\'")}')" class="w-full mt-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center justify-center space-x-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364-6.364l-2.121 2.121m-8.486 8.486l-2.121 2.121m12.728 0l-2.121-2.121m-8.486-8.486L5.636 5.636"/></svg>
+              <span>View Entity Ego-Graph</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function inspectStatement(raw) {
+      document.getElementById('drawerBadge').textContent = 'Official Statement';
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-teal-500/10 text-teal-400 border border-teal-500/30';
+      document.getElementById('drawerId').textContent = raw.id || 'Statement';
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] text-teal-400 font-bold block uppercase tracking-wider">Official Document</span>
+            <h3 class="text-sm font-bold text-white mt-1">Governmental / International Statement</h3>
+          </div>
+          <div class="p-3.5 bg-teal-950/40 rounded-lg border border-teal-500/40">
+            <p class="text-xs text-slate-200 italic leading-relaxed">"${raw.full_text || raw.title}"</p>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            Issued at: <span class="font-mono text-slate-300">${raw.issued_at || 'N/A'}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function inspectStory(story, events = []) {
+      if (!story) return;
+      document.getElementById('drawerBadge').textContent = 'Story Hub';
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/30';
+      document.getElementById('drawerId').textContent = story.story_id;
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] text-purple-400 font-bold block uppercase tracking-wider">Evolving Story Thread</span>
+            <h3 class="text-sm font-bold text-white mt-1 leading-snug">${story.title}</h3>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-center">
+            <div class="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800">
+              <span class="text-[10px] text-slate-500 block">Total Articles</span>
+              <span class="text-base font-bold text-white">${story.article_count}</span>
+            </div>
+            <div class="p-2.5 bg-slate-950/80 rounded-lg border border-slate-800">
+              <span class="text-[10px] text-slate-500 block">Event Nodes</span>
+              <span class="text-base font-bold text-sky-400">${events.length || 'Multi'}</span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-950/60 rounded-lg border border-slate-800 text-[11px] space-y-1">
+            <div class="flex justify-between">
+              <span class="text-slate-500">First Seen:</span>
+              <span class="text-slate-300 font-mono">${story.first_seen ? story.first_seen.slice(0, 10) : 'N/A'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-500">Last Seen:</span>
+              <span class="text-slate-300 font-mono">${story.last_seen ? story.last_seen.slice(0, 10) : 'N/A'}</span>
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-400 leading-relaxed">
+            This narrative thread groups daily micro-clusters across consecutive days using centroid cosine similarity (≥0.70 threshold).
+          </p>
+        </div>
+      `;
+    }
+
+    function inspectArticle(raw) {
+      document.getElementById('drawerBadge').textContent = 'Article Node';
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-teal-500/10 text-teal-400 border border-teal-500/30';
+      document.getElementById('drawerId').textContent = 'Article';
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] text-teal-400 font-bold block uppercase tracking-wider">Source Evidence</span>
+            <h3 class="text-sm font-bold text-white mt-1 leading-snug">${raw.full_title || raw.label}</h3>
+          </div>
+
+          <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-1.5">
+            <div class="flex justify-between text-[11px]">
+              <span class="text-slate-500">Publisher:</span>
+              <span class="text-amber-400 font-semibold">${raw.source_name || 'Unknown'}</span>
+            </div>
+            <div class="flex justify-between text-[11px]">
+              <span class="text-slate-500">Published At:</span>
+              <span class="text-slate-300 font-mono">${raw.published_at ? raw.published_at.slice(0, 16) : 'N/A'}</span>
+            </div>
+          </div>
+
+          ${raw.url ? `
+            <a href="${raw.url}" target="_blank" class="w-full inline-block text-center py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition-colors">
+              Open Original Article ↗
+            </a>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function inspectSource(raw) {
+      document.getElementById('drawerBadge').textContent = 'Source Node';
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30';
+      document.getElementById('drawerId').textContent = raw.id;
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = `
+        <div class="space-y-4">
+          <div>
+            <span class="text-[10px] text-amber-400 font-bold block uppercase tracking-wider">News Publisher</span>
+            <h3 class="text-sm font-bold text-white mt-1">${raw.source_name || raw.label}</h3>
+          </div>
+          <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 text-[11px] space-y-1">
+            <div class="flex justify-between">
+              <span class="text-slate-500">Reliability Index:</span>
+              <span class="text-emerald-400 font-bold font-mono">1.0 (Phase 1 Baseline)</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 9. Timeline View Rendering
+    function renderTimeline(graphData) {
+      const container = document.getElementById('timelineEventsList');
+      container.innerHTML = '';
+
+      if (!graphData.events || graphData.events.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-xs">No events to display in timeline.</p>';
+        return;
+      }
+
+      graphData.events.forEach((evt) => {
+        const item = document.createElement('div');
+        item.className = 'relative space-y-2 group';
+
+        const dot = document.createElement('div');
+        dot.className = 'absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-slate-950 border-2 border-sky-400 group-hover:border-sky-300 transition-colors shadow';
+
+        item.appendChild(dot);
+
+        const card = document.createElement('div');
+        card.className = 'p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all cursor-pointer';
+        card.onclick = () => inspectEvent(evt.event_id);
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-[11px] font-bold text-sky-400 font-mono tracking-wide">${evt.occurred_at}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${evt.category}</span>
+          </div>
+          <h4 class="text-sm font-semibold text-white group-hover:text-sky-300 transition-colors leading-snug">${evt.title}</h4>
+          <p class="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">${evt.summary}</p>
+          <div class="flex items-center justify-between text-[11px] text-slate-500 pt-2 mt-2 border-t border-slate-800/80">
+            <span>Event ID: <code class="text-slate-400">${evt.event_id}</code></span>
+            <span class="text-sky-400 font-medium">Inspect Event & Entities →</span>
+          </div>
+        `;
+        item.appendChild(card);
+        container.appendChild(item);
+      });
+    }
+
+    // 10. View Switcher (Graph vs Timeline)
+    function switchView(viewName) {
+      currentView = viewName;
+      const graphContainer = document.getElementById('graphContainer');
+      const timelineContainer = document.getElementById('timelineContainer');
+      const graphBtn = document.getElementById('tabGraphBtn');
+      const timelineBtn = document.getElementById('tabTimelineBtn');
+
+      if (viewName === 'graph') {
+        graphContainer.classList.remove('hidden');
+        timelineContainer.classList.add('hidden');
+        graphBtn.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-sky-600 text-white flex items-center space-x-1.5 shadow-sm transition-all';
+        timelineBtn.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white flex items-center space-x-1.5 transition-all';
+        if (network) network.fit();
+      } else {
+        graphContainer.classList.add('hidden');
+        timelineContainer.classList.remove('hidden');
+        graphBtn.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white flex items-center space-x-1.5 transition-all';
+        timelineBtn.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-sky-600 text-white flex items-center space-x-1.5 shadow-sm transition-all';
+      }
+    }
+
+    function setStoryFilter(minEvents) {
+      activeFilterMinEvents = minEvents;
+      ['filterAll', 'filterMulti', 'filterDeep'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.className = 'px-2 py-0.5 rounded text-[11px] font-medium text-slate-400 hover:text-white transition-colors';
+      });
+
+      if (minEvents === 1) document.getElementById('filterAll').className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500 text-white transition-colors';
+      if (minEvents === 2) document.getElementById('filterMulti').className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500 text-white transition-colors';
+      if (minEvents === 5) document.getElementById('filterDeep').className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500 text-white transition-colors';
+
+      loadStories(document.getElementById('searchInput').value.trim());
+    }
+
+    function onDateChange() {
+      activeDateFilter = document.getElementById('dateSelect').value;
+      loadStories(document.getElementById('searchInput').value.trim());
+    }
+
+    function fitGraphView() {
+      if (network) network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+    }
+
+    // 11. Phase 3 Causal Edge Inspector & Evidence Trail (UC-04 & UC-08)
+    async function inspectEdge(edge) {
+      document.getElementById('drawerBadge').textContent = `${edge.label || 'Causal'} Edge`;
+      document.getElementById('drawerBadge').className = 'text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/30';
+      document.getElementById('drawerId').textContent = `${edge.from} → ${edge.to}`;
+
+      const content = document.getElementById('drawerContent');
+      content.innerHTML = '<div class="py-8 text-center text-slate-500">Loading edge evidence & trust properties...</div>';
+
+      try {
+        const url = `/api/v1/phase3/evidence?source_id=${encodeURIComponent(edge.from)}&target_id=${encodeURIComponent(edge.to)}&edge_type=${encodeURIComponent(edge.label)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const confPct = Math.round((data.confidence || 0.8) * 100);
+        const agent = data.agent || 'causal_agent';
+        const status = data.status || 'inferred';
+        const rationale = data.rationale || edge.title || 'Inferred via multi-hop causal reasoning pipeline.';
+
+        let articlesListHtml = '';
+        if (data.articles && data.articles.length > 0) {
+          articlesListHtml = data.articles.map(a => `
+            <div class="p-2.5 bg-slate-950/80 rounded border border-slate-800 space-y-1">
+              <a href="${a.url}" target="_blank" class="text-xs font-semibold text-slate-200 hover:text-rose-400 transition-colors line-clamp-2">
+                ${a.title}
+              </a>
+              <div class="flex items-center justify-between text-[10px] text-slate-400">
+                <span class="text-amber-400">${a.source_name || 'News Source'}</span>
+                <span>Rel: ${(a.reliability_score || 1.0).toFixed(1)}</span>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          articlesListHtml = '<p class="text-slate-500 text-[11px]">No direct citation articles linked to this edge.</p>';
+        }
+
+        content.innerHTML = `
+          <div class="space-y-4">
+            <div>
+              <span class="text-[10px] text-rose-400 font-bold uppercase tracking-wider block">Reasoning Edge Inspector</span>
+              <h3 class="text-sm font-bold text-white mt-1 leading-snug">
+                <code class="text-sky-300 font-mono">${edge.from}</code>
+                <span class="text-rose-400 mx-1 font-bold">-[${edge.label}]-&gt;</span>
+                <code class="text-purple-300 font-mono">${edge.to}</code>
+              </h3>
+            </div>
+
+            <!-- Trust Properties Card -->
+            <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Confidence Score:</span>
+                <span class="font-bold font-mono text-emerald-400">${confPct}%</span>
+              </div>
+              <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full" style="width: ${confPct}%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] pt-1">
+                <span class="text-slate-400">Agent:</span>
+                <span class="font-mono text-slate-200 px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">${agent}</span>
+              </div>
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-slate-400">Status:</span>
+                <span class="px-1.5 py-0.5 rounded font-bold uppercase text-[10px] ${status === 'confirmed' ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30' : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'}">${status}</span>
+              </div>
+            </div>
+
+            <!-- Causal Rationale -->
+            <div class="p-3 bg-rose-950/20 rounded-lg border border-rose-900/40 space-y-1">
+              <span class="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">Agent Rationale &amp; Evidence</span>
+              <p class="text-xs text-slate-200 leading-relaxed italic">"${rationale}"</p>
+            </div>
+
+            <!-- Supporting Evidence Articles (UC-04) -->
+            <div>
+              <span class="text-xs font-semibold text-slate-300 block mb-2">Evidence Trail (${data.articles ? data.articles.length : 0} Sources)</span>
+              <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                ${articlesListHtml}
+              </div>
+            </div>
+
+            <!-- Human-in-the-Loop Curation (UC-08) -->
+            <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-2">
+              <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Human Editor Curation (UC-08)</span>
+              <p class="text-[11px] text-slate-400">Approve this connection or adjust confidence. Editor changes are permanent and cannot be overwritten by AI agents.</p>
+              <div class="flex space-x-2 pt-1">
+                <button onclick="curateEdgeAction('${edge.from}', '${edge.to}', '${edge.label}', 'confirmed', 0.95)" class="flex-1 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center justify-center space-x-1">
+                  <span>Confirm Edge</span>
+                </button>
+                <button onclick="curateEdgeAction('${edge.from}', '${edge.to}', '${edge.label}', 'inferred', 0.60)" class="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors">
+                  Downgrade
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+      } catch (err) {
+        console.error('Failed to load edge evidence:', err);
+        content.innerHTML = `
+          <div class="p-4 bg-slate-950/80 rounded-lg border border-slate-800 text-xs space-y-2">
+            <h4 class="font-bold text-white">${edge.label} Edge</h4>
+            <p class="text-slate-400">${edge.title || 'Inferred relationship'}</p>
+            <div class="text-[10px] text-slate-500 font-mono">From: ${edge.from} → To: ${edge.to}</div>
+          </div>
+        `;
+      }
+    }
+
+    async function curateEdgeAction(sourceId, targetId, edgeType, status, confidence) {
+      try {
+        const res = await fetch('/api/v1/phase3/curate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_id: sourceId,
+            target_id: targetId,
+            edge_type: edgeType,
+            status: status,
+            confidence: confidence,
+            rationale: `Curated by editor in Web Explorer (status=${status})`,
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Edge marked as ${status} (confidence=${confidence}). Protected against AI overwrite.`);
+          inspectEdge({ from: sourceId, to: targetId, label: edgeType });
+          loadStats();
+        } else {
+          alert('Failed to curate edge: ' + JSON.stringify(data));
+        }
+      } catch (err) {
+        alert('Curation error: ' + err.message);
+      }
+    }
+
+    // 12. Load Phase 3 Causal Edges Feed
+    async function loadCausalFeed() {
+      const container = document.getElementById('causalList');
+      container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">Loading Phase 3 Causal Edges...</div>';
+
+      try {
+        let url = `/api/v1/phase3/edges?limit=60`;
+        if (activeCausalEdgeFilter) url += `&edge_type=${encodeURIComponent(activeCausalEdgeFilter)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        causalFeedData = data.edges || [];
+
+        document.getElementById('causalCountLabel').textContent = `Showing ${causalFeedData.length} reasoning edges`;
+
+        if (causalFeedData.length === 0) {
+          container.innerHTML = '<div class="p-6 text-center text-xs text-slate-500">No causal edges found.</div>';
+          return;
+        }
+
+        container.innerHTML = '';
+        causalFeedData.forEach((edge) => {
+          const card = document.createElement('div');
+          card.className = 'p-3 rounded-xl bg-slate-950/60 hover:bg-slate-850/80 border border-slate-800/80 hover:border-slate-700 transition-all space-y-2 cursor-pointer';
+
+          const badgeStyles = {
+            CAUSED: 'bg-rose-950/80 text-rose-300 border-rose-500/40',
+            CONTRIBUTED_TO: 'bg-amber-950/80 text-amber-300 border-amber-500/40',
+            AFFECTS: 'bg-purple-950/80 text-purple-300 border-purple-500/40',
+            IMPACTED: 'bg-cyan-950/80 text-cyan-300 border-cyan-500/40',
+          };
+          const badgeClass = badgeStyles[edge.type] || 'bg-slate-800 text-slate-300 border-slate-700';
+
+          const conf = Math.round((edge.confidence || 0.8) * 100);
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-1.5">
+              <span class="text-[10px] px-2 py-0.5 rounded-full border font-bold ${badgeClass}">
+                ${edge.type}
+              </span>
+              <span class="text-[10px] font-mono text-emerald-400 font-semibold">${conf}% conf</span>
+            </div>
+
+            <div class="text-xs space-y-1">
+              <div class="text-slate-300 line-clamp-1"><span class="text-slate-500 font-medium">From:</span> ${edge.source_title || edge.source_id}</div>
+              <div class="text-slate-200 line-clamp-1 font-medium"><span class="text-rose-400">→</span> ${edge.target_title || edge.target_id}</div>
+            </div>
+
+            ${edge.rationale ? `
+              <p class="text-[11px] text-slate-400 line-clamp-2 italic bg-slate-900/60 p-1.5 rounded">
+                "${edge.rationale}"
+              </p>
+            ` : ''}
+
+            <div class="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px]">
+              <span class="text-slate-500 font-mono">Agent: ${edge.agent || 'causal'}</span>
+              <button onclick="event.stopPropagation(); plotSingleEdgeOnGraph('${edge.source_id}', '${edge.target_id}', '${edge.type}')" class="text-rose-400 hover:text-rose-300 font-semibold flex items-center space-x-1">
+                <span>View on Graph →</span>
+              </button>
+            </div>
+          `;
+
+          card.onclick = () => {
+            inspectEdge({
+              from: edge.source_id,
+              to: edge.target_id,
+              label: edge.type,
+              title: edge.rationale,
+            });
+          };
+
+          container.appendChild(card);
+        });
+
+      } catch (err) {
+        console.error('Failed to load causal feed:', err);
+        container.innerHTML = '<div class="p-6 text-center text-xs text-rose-400">Error loading causal edges.</div>';
+      }
+    }
+
+    function setCausalEdgeFilter(type) {
+      activeCausalEdgeFilter = type;
+      document.querySelectorAll('.causal-filter-btn').forEach(btn => {
+        if (btn.dataset.type === type) {
+          btn.className = 'causal-filter-btn px-2 py-0.5 rounded bg-rose-600 text-white font-medium';
+        } else {
+          btn.className = 'causal-filter-btn px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white';
+        }
+      });
+      loadCausalFeed();
+    }
+
+    // 13. Interactive Phase 3 Use Cases (UC-01, UC-02, UC-03)
+    async function runInvestigate(targetId = null) {
+      const eventId = targetId || document.getElementById('investigateEventInput').value.trim();
+      const hops = document.getElementById('investigateHopsSelect') ? document.getElementById('investigateHopsSelect').value : 2;
+      if (!eventId) {
+        alert('Please enter or select an event ID to investigate.');
+        return;
+      }
+
+      document.getElementById('emptyPrompt').classList.add('hidden');
+      document.getElementById('activeStoryTitle').innerHTML = `<span class="text-rose-400 font-bold">Investigate (UC-01):</span> ${eventId}`;
+
+      try {
+        const res = await fetch(`/api/v1/phase3/investigate/${encodeURIComponent(eventId)}?hops=${hops}`);
+        const data = await res.json();
+
+        // Convert investigate nodes and edges to Vis-Network format
+        const visNodes = (data.nodes || []).map(n => ({
+          id: n.id,
+          label: n.name || n.title || n.id,
+          group: (n.type || 'event').toLowerCase(),
+          title: n.title || n.name,
+          size: n.id === eventId ? 28 : 18,
+          raw: n,
+        }));
+
+        const visEdges = (data.edges || []).map(e => ({
+          from: e.source_id,
+          to: e.target_id,
+          label: e.edge_type,
+          title: e.rationale || e.edge_type,
+          color: { color: e.edge_type === 'CAUSED' ? '#f43f5e' : e.edge_type === 'CONTRIBUTED_TO' ? '#f59e0b' : '#a855f7' },
+          width: 2.5,
+          raw: { from: e.source_id, to: e.target_id, label: e.edge_type, title: e.rationale, ...e },
+        }));
+
+        renderVisGraph({ nodes: visNodes, edges: visEdges });
+        await inspectEvent(eventId);
+
+      } catch (err) {
+        alert('Investigate error: ' + err.message);
+      }
+    }
+
+    async function runImpactRadius(targetId = null) {
+      const eventId = targetId || document.getElementById('impactEventInput').value.trim();
+      const hops = document.getElementById('impactHopsSelect') ? document.getElementById('impactHopsSelect').value : 2;
+      if (!eventId) {
+        alert('Please enter or select an event ID to trace impact.');
+        return;
+      }
+
+      document.getElementById('emptyPrompt').classList.add('hidden');
+      document.getElementById('activeStoryTitle').innerHTML = `<span class="text-cyan-400 font-bold">Impact Radius (UC-02):</span> ${eventId}`;
+
+      try {
+        const res = await fetch(`/api/v1/phase3/impact/${encodeURIComponent(eventId)}?hops=${hops}`);
+        const data = await res.json();
+
+        // Build Ego-Graph of impacted actors & sectors
+        const visNodes = [{ id: eventId, label: 'Origin Event', group: 'event', size: 30 }];
+        const visEdges = [];
+
+        ['countries', 'companies', 'industries', 'commodities'].forEach(category => {
+          const list = data.impacted_entities ? data.impacted_entities[category] : [];
+          const groupType = category === 'countries' ? 'country' : category === 'companies' ? 'company' : category === 'industries' ? 'industry' : 'commodity';
+          (list || []).forEach(item => {
+            const entId = item.canonical_name || item.name;
+            visNodes.push({
+              id: entId,
+              label: entId,
+              group: groupType,
+              size: 20,
+              raw: { ...item, entity_type: groupType },
+            });
+            visEdges.push({
+              from: eventId,
+              to: entId,
+              label: 'AFFECTS',
+              color: { color: '#06b6d4' },
+              width: 2,
+              raw: { from: eventId, to: entId, label: 'AFFECTS', confidence: item.confidence },
+            });
+          });
+        });
+
+        renderVisGraph({ nodes: visNodes, edges: visEdges });
+        await inspectEvent(eventId);
+
+      } catch (err) {
+        alert('Impact error: ' + err.message);
+      }
+    }
+
+    async function runConnectDots() {
+      const src = document.getElementById('connectSourceInput').value.trim();
+      const tgt = document.getElementById('connectTargetInput').value.trim();
+      if (!src || !tgt) {
+        alert('Please enter both source and target event IDs.');
+        return;
+      }
+
+      document.getElementById('emptyPrompt').classList.add('hidden');
+      document.getElementById('activeStoryTitle').innerHTML = `<span class="text-amber-400 font-bold">Connect Path (UC-03):</span> ${src} → ${tgt}`;
+
+      try {
+        const res = await fetch(`/api/v1/phase3/connect?source_event_id=${encodeURIComponent(src)}&target_event_id=${encodeURIComponent(tgt)}`);
+        const data = await res.json();
+
+        if (!data.found) {
+          alert(data.message || 'No connecting causal path found.');
+          return;
+        }
+
+        // Plot the connecting path
+        const visNodes = (data.nodes || []).map(n => ({
+          id: n.id,
+          label: n.title || n.name || n.id,
+          group: (n.type || 'event').toLowerCase(),
+          size: 24,
+          raw: n,
+        }));
+
+        const visEdges = (data.path || []).map(step => ({
+          from: step.from,
+          to: step.to,
+          label: step.edge_type,
+          title: `Confidence: ${(step.confidence * 100).toFixed(0)}%`,
+          color: { color: '#f59e0b' },
+          width: 3,
+          raw: { from: step.from, to: step.to, label: step.edge_type, ...step },
+        }));
+
+        renderVisGraph({ nodes: visNodes, edges: visEdges });
+
+      } catch (err) {
+        alert('Connect error: ' + err.message);
+      }
+    }
+
+    function investigateSpecificEvent(eventId) {
+      switchSidebarTab('causal');
+      switchCausalMode('investigate');
+      document.getElementById('investigateEventInput').value = eventId;
+      runInvestigate(eventId);
+    }
+
+    function impactSpecificEvent(eventId) {
+      switchSidebarTab('causal');
+      switchCausalMode('impact');
+      document.getElementById('impactEventInput').value = eventId;
+      runImpactRadius(eventId);
+    }
+
+    async function plotSingleEdgeOnGraph(sourceId, targetId, edgeType) {
+      document.getElementById('emptyPrompt').classList.add('hidden');
+      document.getElementById('activeStoryTitle').innerHTML = `<span class="text-rose-400 font-bold">Edge:</span> ${sourceId} -[${edgeType}]-> ${targetId}`;
+
+      const visNodes = [
+        { id: sourceId, label: sourceId, group: 'event', size: 24 },
+        { id: targetId, label: targetId, group: 'event', size: 24 },
+      ];
+      const visEdges = [
+        {
+          from: sourceId,
+          to: targetId,
+          label: edgeType,
+          color: { color: edgeType === 'CAUSED' ? '#f43f5e' : '#f59e0b' },
+          width: 3,
+          raw: { from: sourceId, to: targetId, label: edgeType },
+        }
+      ];
+
+      renderVisGraph({ nodes: visNodes, edges: visEdges });
+      inspectEdge({ from: sourceId, to: targetId, label: edgeType });
+    }
+  </script>
+</body>
+</html>

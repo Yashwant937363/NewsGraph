@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NewsFetch — Article Explorer</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .skeleton {
+      animation: pulse-subtle 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo / Title -->
+      <div class="flex items-center space-x-3 shrink-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            NewsFetch
+            <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 font-medium">MongoDB Ingestion</span>
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Real-time deduplicated event articles explorer</p>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Counter -->
+      <div class="flex items-center gap-2 sm:gap-4 shrink-0 text-xs">
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-slate-400">Total in DB:</span>
+          <span id="headerTotalCount" class="font-bold text-white font-mono">-</span>
+        </div>
+        <a href="/docs" target="_blank" class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-800 border border-slate-700 transition">
+          <span>API Docs</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Filter & Controls Toolbar -->
+  <section class="bg-slate-900/50 border-b border-slate-800/80 sticky top-16 z-30 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-3">
+        
+        <!-- Search Input -->
+        <div class="relative w-full md:w-96">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Search headline, summary, keywords..."
+            class="w-full bg-slate-800/90 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition"
+          >
+          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <button id="clearSearchBtn" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200 text-xs bg-slate-700/60 rounded-full w-5 h-5 flex items-center justify-center">✕</button>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex items-center gap-2.5 w-full md:w-auto justify-end">
+          
+          <!-- Source Filter Dropdown -->
+          <div class="relative w-full sm:w-60">
+            <select 
+              id="sourceFilter" 
+              class="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition cursor-pointer appearance-none"
+            >
+              <option value="">All Sources</option>
+            </select>
+            <svg class="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          <!-- Reset Filter Button -->
+          <button 
+            id="resetFiltersBtn"
+            class="px-3 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition shrink-0"
+            title="Reset Filters"
+          >
+            Reset
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Active Tag Bar -->
+      <div id="activeTagContainer" class="hidden mt-2 flex items-center gap-2 text-xs">
+        <span class="text-slate-400">Filtering by query tag:</span>
+        <span id="activeTagLabel" class="bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-full font-mono font-medium flex items-center gap-1.5">
+          <span></span>
+          <button id="clearTagBtn" class="hover:text-white font-bold ml-1">✕</button>
+        </span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- Status & Results Count Bar -->
+    <div class="flex items-center justify-between mb-6 text-sm text-slate-400">
+      <div>
+        Showing <span id="displayedCount" class="font-bold text-sky-400">0</span> of 
+        <span id="matchingCount" class="font-bold text-slate-200">0</span> articles
+        <span id="filterLabel" class="text-xs text-slate-500 ml-1"></span>
+      </div>
+      <div id="liveLoadingStatus" class="flex items-center gap-2 text-xs font-medium text-sky-400">
+        <span class="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
+        <span>Loading articles...</span>
+      </div>
+    </div>
+
+    <!-- Articles Grid -->
+    <div id="articlesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Injected via JavaScript -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden py-16 text-center">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-400">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-200">No articles found</h3>
+      <p class="text-sm text-slate-400 max-w-sm mx-auto mt-1">Try adjusting your search keywords, clear the source filter, or ingest more data.</p>
+    </div>
+
+    <!-- Infinite Scroll Sentinel / Skeleton Loader Trigger -->
+    <div id="sentinel" class="py-10 text-center flex flex-col items-center justify-center">
+      <div id="loadingSpinner" class="flex items-center gap-3 text-sm text-slate-400">
+        <svg class="animate-spin h-5 w-5 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span>Loading next batch of articles...</span>
+      </div>
+
+      <div id="endOfResults" class="hidden text-sm text-slate-500 py-4">
+        ✓ You have reached the end of the articles list.
+      </div>
+
+      <!-- Manual fallback button -->
+      <button 
+        id="loadMoreBtn" 
+        class="hidden mt-4 px-5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-medium text-slate-200 hover:text-white transition shadow-sm"
+      >
+        Load More Articles
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-900/60 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4">
+      NewsFetch Pipeline • Powered by FastAPI & MongoDB • Resumable 150-Query Ingestion
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    const STATE = {
+      skip: 0,
+      limit: 24,
+      total: 0,
+      search: '',
+      source: '',
+      queryTag: '',
+      isLoading: false,
+      hasMore: true,
+      sourcesLoaded: false,
+    };
+
+    const grid = document.getElementById('articlesGrid');
+    const sentinel = document.getElementById('sentinel');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const endOfResults = document.getElementById('endOfResults');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    const emptyState = document.getElementById('emptyState');
+    const headerTotalCount = document.getElementById('headerTotalCount');
+    const displayedCount = document.getElementById('displayedCount');
+    const matchingCount = document.getElementById('matchingCount');
+    const liveLoadingStatus = document.getElementById('liveLoadingStatus');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const sourceFilter = document.getElementById('sourceFilter');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const activeTagContainer = document.getElementById('activeTagContainer');
+    const activeTagLabel = document.getElementById('activeTagLabel');
+    const clearTagBtn = document.getElementById('clearTagBtn');
+
+    // Format UTC Date
+    function formatDate(dateStr) {
+      if (!dateStr) return 'Recent';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Create article card HTML element
+    function createArticleCard(item) {
+      const card = document.createElement('article');
+      card.className = "bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 hover:shadow-xl hover:shadow-sky-950/20 transition-all flex flex-col group";
+
+      const imageUrl = item.url_to_image;
+      const title = escapeHtml(item.title || 'Untitled Article');
+      const description = escapeHtml(item.description || 'No description available.');
+      const source = escapeHtml(item.source_name || 'News Source');
+      const author = escapeHtml(item.author || '');
+      const published = formatDate(item.published_at);
+      const url = escapeHtml(item.url || '#');
+      const queries = item.matched_queries || [];
+
+      // Image or placeholder
+      let imageHtml = '';
+      if (imageUrl && !imageUrl.includes('removed') && !imageUrl.includes('null')) {
+        imageHtml = `
+          <div class="relative h-44 w-full bg-slate-800 overflow-hidden shrink-0">
+            <img 
+              src="${escapeHtml(imageUrl)}" 
+              alt="${title}" 
+              loading="lazy" 
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onerror="this.parentElement.innerHTML = '<div class=\\'w-full h-full flex items-center justify-center bg-slate-800 text-slate-600\\'><svg class=\\'w-8 h-8\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'1.5\\' d=\\'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z\\' /></svg></div>'"
+            >
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent opacity-80"></div>
+          </div>
+        `;
+      } else {
+        imageHtml = `
+          <div class="h-28 w-full bg-gradient-to-br from-slate-800 to-slate-850 border-b border-slate-800 flex items-center justify-center text-slate-600 shrink-0">
+            <svg class="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
+          </div>
+        `;
+      }
+
+      // Query tags HTML
+      let tagsHtml = '';
+      if (queries.length > 0) {
+        tagsHtml = queries.slice(0, 3).map(q => {
+          const displayQ = escapeHtml(q.length > 35 ? q.substring(0, 35) + '...' : q);
+          return `<button onclick="setQueryTagFilter('${escapeHtml(q)}')" class="inline-block text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800 hover:bg-sky-900/50 hover:text-sky-300 text-slate-400 border border-slate-700/80 transition" title="Filter by: ${escapeHtml(q)}">${displayQ}</button>`;
+        }).join(' ');
+        if (queries.length > 3) {
+          tagsHtml += `<span class="text-[11px] text-slate-500 font-mono">+${queries.length - 3} more</span>`;
+        }
+      }
+
+      card.innerHTML = `
+        ${imageHtml}
+        <div class="p-5 flex-1 flex flex-col justify-between">
+          <div>
+            <!-- Source & Date Header -->
+            <div class="flex items-center justify-between gap-2 text-xs text-slate-400 mb-2.5">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-md font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                ${source}
+              </span>
+              <time class="text-slate-400 text-[11px]">${published}</time>
+            </div>
+
+            <!-- Headline -->
+            <h2 class="text-base font-semibold text-slate-100 group-hover:text-sky-400 transition-colors line-clamp-2 leading-snug mb-2">
+              <a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a>
+            </h2>
+
+            <!-- Author if present -->
+            ${author ? `<p class="text-xs text-slate-400 mb-2 italic">By ${author}</p>` : ''}
+
+            <!-- Snippet -->
+            <p class="text-xs text-slate-300/80 line-clamp-3 leading-relaxed mb-4">
+              ${description}
+            </p>
+          </div>
+
+          <!-- Card Footer: Tags & External Link -->
+          <div class="pt-3 border-t border-slate-800/80 mt-auto">
+            <div class="flex flex-wrap items-center gap-1.5 mb-3">
+              ${tagsHtml}
+            </div>
+            <div class="flex items-center justify-between">
+              <a 
+                href="${url}" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="inline-flex items-center gap-1.5 text-xs font-medium text-sky-400 hover:text-sky-300 transition"
+              >
+                <span>Read Full Article</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    // Fetch Articles from FastAPI API
+    async function fetchArticles(reset = false) {
+      if (STATE.isLoading) return;
+      if (!reset && !STATE.hasMore) return;
+
+      STATE.isLoading = true;
+      liveLoadingStatus.classList.remove('hidden');
+      loadingSpinner.classList.remove('hidden');
+      endOfResults.classList.add('hidden');
+      loadMoreBtn.classList.add('hidden');
+
+      if (reset) {
+        STATE.skip = 0;
+        grid.innerHTML = '';
+        emptyState.classList.add('hidden');
+      }
+
+      const params = new URLSearchParams({
+        skip: STATE.skip,
+        limit: STATE.limit,
+      });
+
+      if (STATE.search) params.append('search', STATE.search);
+      if (STATE.source) params.append('source', STATE.source);
+      if (STATE.queryTag) params.append('query_tag', STATE.queryTag);
+
+      try {
+        const res = await fetch(`/api/v1/articles?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+        const data = await res.json();
+
+        STATE.total = data.total;
+        STATE.hasMore = data.has_more;
+        STATE.skip += data.items.length;
+
+        // Populate sources filter once
+        if (!STATE.sourcesLoaded && data.sources && data.sources.length > 0) {
+          data.sources.forEach(src => {
+            const opt = document.createElement('option');
+            opt.value = src;
+            opt.textContent = src;
+            sourceFilter.appendChild(opt);
+          });
+          STATE.sourcesLoaded = true;
+        }
+
+        // Update counts
+        headerTotalCount.textContent = data.total;
+        matchingCount.textContent = data.total;
+
+        // Render articles
+        if (data.items.length === 0 && STATE.skip === 0) {
+          emptyState.classList.remove('hidden');
+          displayedCount.textContent = 0;
+        } else {
+          data.items.forEach(item => {
+            grid.appendChild(createArticleCard(item));
+          });
+          displayedCount.textContent = grid.children.length;
+        }
+
+        if (!STATE.hasMore) {
+          loadingSpinner.classList.add('hidden');
+          if (data.total > 0) {
+            endOfResults.classList.remove('hidden');
+          }
+        }
+
+      } catch (err) {
+        console.error("Error loading articles:", err);
+        loadingSpinner.classList.add('hidden');
+        loadMoreBtn.classList.remove('hidden');
+      } finally {
+        STATE.isLoading = false;
+        liveLoadingStatus.classList.add('hidden');
+      }
+    }
+
+    // Set Tag Filter from clicking card tag
+    window.setQueryTagFilter = function(tag) {
+      STATE.queryTag = tag;
+      activeTagLabel.firstElementChild.textContent = tag;
+      activeTagContainer.classList.remove('hidden');
+      fetchArticles(true);
+    };
+
+    clearTagBtn.addEventListener('click', () => {
+      STATE.queryTag = '';
+      activeTagContainer.classList.add('hidden');
+      fetchArticles(true);
+    });
+
+    // Debounced search input
+    let searchTimeout = null;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      const val = e.target.value.trim();
+      clearSearchBtn.classList.toggle('hidden', val.length === 0);
+      searchTimeout = setTimeout(() => {
+        STATE.search = val;
+        fetchArticles(true);
+      }, 350);
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearSearchBtn.classList.add('hidden');
+      STATE.search = '';
+      fetchArticles(true);
+    });
+
+    // Source Filter Change
+    sourceFilter.addEventListener('change', (e) => {
+      STATE.source = e.target.value;
+      fetchArticles(true);
+    });
+
+    // Reset All Filters
+    resetFiltersBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearSearchBtn.classList.add('hidden');
+      sourceFilter.value = '';
+      STATE.search = '';
+      STATE.source = '';
+      STATE.queryTag = '';
+      activeTagContainer.classList.add('hidden');
+      fetchArticles(true);
+    });
+
+    // Manual Load More button
+    loadMoreBtn.addEventListener('click', () => {
+      fetchArticles(false);
+    });
+
+    // IntersectionObserver for automatic Infinite Lazy Loading
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && !STATE.isLoading && STATE.hasMore) {
+          fetchArticles(false);
+        }
+      });
+    }, {
+      rootMargin: '250px 0px',
+      threshold: 0.1
+    });
+
+    observer.observe(sentinel);
+
+    // Initial Load
+    fetchArticles(true);
+  </script>
+</body>
+</html>
