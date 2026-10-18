@@ -28,7 +28,6 @@ import './App.css';
 export const App: React.FC = () => {
   const [activeEventId, setActiveEventId] = useState<string>('');
   const [activeMode, setActiveMode] = useState<ActionMode>('investigate');
-  const defaultExplain = true;
 
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [loading, setLoading] = useState<boolean>(false);
@@ -121,7 +120,7 @@ export const App: React.FC = () => {
   // Handle Event selection from search / dropdown
   const handleSelectEvent = (eventId: string) => {
     setActiveEventId(eventId);
-    executeAnalysis(eventId, activeMode, defaultExplain);
+    executeAnalysis(eventId, activeMode, false);
   };
 
   // Handle Entity selection from search
@@ -134,7 +133,7 @@ export const App: React.FC = () => {
         const topEvent = events[0];
         setActiveEventId(topEvent.event_id);
         showToast(`Loaded "${entityName}" incident: ${topEvent.title}`);
-        await executeAnalysis(topEvent.event_id, activeMode, defaultExplain);
+        await executeAnalysis(topEvent.event_id, activeMode, false);
       } else {
         // Inspect node evidence directly
         const ev = await getNodeEvidence(entityName);

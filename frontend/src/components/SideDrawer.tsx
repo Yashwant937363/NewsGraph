@@ -693,9 +693,74 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   </span>
                 </div>
 
-                <div style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', marginBottom: '6px', lineHeight: 1.4 }}>
-                  {nodeEvidence.title || nodeEvidence.node_id}
-                </div>
+                {(() => {
+                  const isArticleNode =
+                    nodeEvidence.labels.includes('Article') ||
+                    nodeEvidence.node_id.startsWith('http');
+                  const articleUrl = isArticleNode
+                    ? (nodeEvidence.node_id.startsWith('http') ? nodeEvidence.node_id : (nodeEvidence.articles?.[0]?.url || ''))
+                    : '';
+
+                  return (
+                    <>
+                      {isArticleNode && articleUrl ? (
+                        <div style={{ marginBottom: '16px' }}>
+                          <a
+                            href={articleUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              color: '#1d1d1f',
+                              lineHeight: 1.4,
+                              display: 'inline-flex',
+                              alignItems: 'baseline',
+                              gap: '8px',
+                              textDecoration: 'none',
+                              marginBottom: '12px',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#0066cc')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = '#1d1d1f')}
+                          >
+                            <span>{nodeEvidence.title || nodeEvidence.node_id}</span>
+                            <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '12px', opacity: 0.65 }}></i>
+                          </a>
+
+                          <a
+                            href={articleUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="glass-button-primary"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              width: '100%',
+                              padding: '10px 18px',
+                              borderRadius: '12px',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              background: '#1d1d1f',
+                              color: '#ffffff',
+                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
+                            }}
+                          >
+                            <i className="fa-solid fa-newspaper"></i>
+                            <span>Read Full Article</span>
+                            <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '10px', marginLeft: '2px' }}></i>
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', marginBottom: '6px', lineHeight: 1.4 }}>
+                          {nodeEvidence.title || nodeEvidence.node_id}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {nodeEvidence.occurred_at && (
                   <div style={{ fontSize: '11.5px', color: 'rgba(0, 0, 0, 0.55)', marginBottom: '16px' }}>
@@ -748,6 +813,28 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                         <div style={{ fontSize: '11.5px', color: '#515154', lineHeight: 1.5 }}>
                           {art.snippet}
                         </div>
+                      )}
+                      {art.url && (
+                        <a
+                          href={art.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            color: '#0066cc',
+                            marginTop: '8px',
+                            textDecoration: 'none',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                        >
+                          <span>Read Full Article</span>
+                          <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '9px' }}></i>
+                        </a>
                       )}
                     </div>
                   ))}
