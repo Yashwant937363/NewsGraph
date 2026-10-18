@@ -58,13 +58,36 @@ export const TopBar: React.FC<TopBarProps> = ({
   }, [query]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+    const handleClickOutside = (e: Event) => {
+      if (!containerRef.current) return;
+      const path = (e as any).composedPath ? (e as any).composedPath() : [];
+      const isInside =
+        containerRef.current.contains(e.target as Node) ||
+        path.includes(containerRef.current);
+
+      if (!isInside) {
         setDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDropdownOpen(false);
+      }
+    };
+
+    // Use capture phase (true) so clicks on <falkordb-canvas> / Shadow DOM are caught before stopPropagation()
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('pointerdown', handleClickOutside, true);
+    document.addEventListener('touchstart', handleClickOutside, true);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('pointerdown', handleClickOutside, true);
+      document.removeEventListener('touchstart', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleSearchSubmit = async (e?: React.FormEvent) => {

@@ -252,14 +252,21 @@ async def get_edge_evidence(
     }
 
 
-@router.get("/node/{node_id}")
-async def get_node_evidence(node_id: str):
+@router.get("/node")
+@router.get("/node/{node_id:path}")
+async def get_node_evidence(node_id: Optional[str] = None):
     """
     UC-04: View Node Evidence Trail.
     Retrieves node metadata, reporting/mentioning articles, publisher reliability badges,
-    and excerpt text snippets.
+    and excerpt text snippets. Supports Events, Entities, and Articles.
     Zero LLM latency (< 5ms).
     """
+    if not node_id or node_id.strip() == "" or node_id == "None":
+        raise HTTPException(
+            status_code=400,
+            detail="A valid node_id parameter is required.",
+        )
+
     graph = get_falkordb_graph()
     if graph is None:
         raise HTTPException(
@@ -270,12 +277,12 @@ async def get_node_evidence(node_id: str):
     # 1. Match the node
     node_query = """
     MATCH (n)
-    WHERE n.event_id = $id OR n.canonical_name = $id OR n.url = $id OR n.name = $id
+    WHERE n.event_id = $id OR n.story_id = $id OR n.canonical_name = $id OR n.url = $id OR n.name = $id OR n.title = $id
     RETURN
-        coalesce(n.event_id, n.canonical_name, n.url, n.name) AS id,
+        coalesce(n.event_id, n.story_id, n.canonical_name, n.url, n.name, toString(id(n))) AS id,
         labels(n) AS labels,
-        coalesce(n.title, n.canonical_name, n.name) AS title,
-        n.occurred_at AS occurred_at,
+        coalesce(n.title, n.canonical_name, n.name, n.story_id, n.event_id) AS title,
+        coalesce(n.occurred_at, n.published_at, n.first_seen) AS occurred_at,
         properties(n) AS props
     LIMIT 1
     """
@@ -289,9 +296,142 @@ async def get_node_evidence(node_id: str):
     matched_id, labels, title, occurred_at, props = res.result_set[0]
     clean_node_props = _clean_props(props)
     labels_list = list(labels or [])
-
-    # 2. Match reporting/mentioning articles
+    is_article = "Article" in labels_list
+    is_story = "Story" in labels_list
     is_event = "Event" in labels_list
+
+    # Handle Story nodes
+    if is_story:
+        evt_q = """
+        MATCH (e:Event)-[:PART_OF]->(s:Story)
+        WHERE s.story_id = $id OR s.title = $id
+        RETURN e.event_id, e.title, e.occurred_at
+        LIMIT 10
+        """
+        evt_res = graph.query(evt_q, {"id": matched_id})
+        story_events = [row[0] for row in evt_res.result_set if row[0]]
+
+        articles_data = []
+        if story_events:
+            art_q = """
+            MATCH (a:Article)-[:REPORTS_ON]->(e:Event)
+            WHERE e.event_id IN $evt_ids
+            OPTIONAL MATCH (a)-[:PUBLISHED_BY]->(src:Source)
+            RETURN DISTINCT a.url, a.title, a.published_at, src.name, src.reliability, a.description
+            LIMIT 25
+            """
+            art_res = graph.query(art_q, {"evt_ids": story_events})
+            for row in art_res.result_set:
+                url, art_title, pub_at, s_name, s_rel, desc = row
+                snippet = (desc or "")[:280] + "..." if desc and len(desc) > 280 else (desc or "")
+                articles_data.append({
+                    "url": url,
+                    "title": art_title or "Story Article",
+                    "publisher": s_name or _publisher_from_url(url),
+                    "reliability": float(s_rel) if s_rel is not None else 1.0,
+                    "published_at": pub_at,
+                    "snippet": snippet,
+                })
+
+        return {
+            "node_id": str(matched_id),
+            "labels": labels_list,
+            "title": title or clean_node_props.get("title") or str(matched_id),
+            "occurred_at": clean_node_props.get("first_seen") or clean_node_props.get("last_seen") or occurred_at,
+            "articles_count": len(articles_data),
+            "articles": articles_data,
+        }
+
+    if is_article:
+        # Match article's own publisher and reliability
+        src_q = """
+        MATCH (a:Article {url: $url})-[:PUBLISHED_BY]->(src:Source)
+        RETURN src.name, src.reliability
+        LIMIT 1
+        """
+        src_res = graph.query(src_q, {"url": matched_id})
+        pub_name = (
+            src_res.result_set[0][0]
+            if src_res.result_set and src_res.result_set[0][0]
+            else _publisher_from_url(str(matched_id))
+        )
+        pub_rel = (
+            float(src_res.result_set[0][1])
+            if src_res.result_set and src_res.result_set[0][1] is not None
+            else 1.0
+        )
+
+        # Match text chunks for snippets
+        chk_q = """
+        MATCH (a:Article {url: $url})-[:HAS_CHUNK]->(c:Chunk)
+        RETURN c.chunk_id, c.chunk_index, c.text
+        ORDER BY c.chunk_index ASC
+        LIMIT 5
+        """
+        chk_res = graph.query(chk_q, {"url": matched_id})
+        chunks_text = [row[2] for row in chk_res.result_set if row[2]]
+        primary_snippet = (
+            chunks_text[0]
+            if chunks_text
+            else (clean_node_props.get("description") or "")
+        )
+        if len(primary_snippet) > 280:
+            primary_snippet = primary_snippet[:280] + "..."
+
+        # Fetch the event(s) this article reports on
+        evt_q = """
+        MATCH (a:Article {url: $url})-[:REPORTS_ON]->(e:Event)
+        RETURN e.event_id, e.title, e.occurred_at
+        LIMIT 5
+        """
+        evt_res = graph.query(evt_q, {"url": matched_id})
+        related_events = [row[0] for row in evt_res.result_set if row[0]]
+
+        articles_data = [{
+            "url": str(matched_id),
+            "title": title or clean_node_props.get("title") or "Reporting Article",
+            "publisher": pub_name,
+            "reliability": pub_rel,
+            "published_at": clean_node_props.get("published_at"),
+            "snippet": primary_snippet,
+        }]
+
+        # Fetch corroborating articles reporting on the same event
+        if related_events:
+            corrob_q = """
+            MATCH (e:Event)<-[:REPORTS_ON]-(other:Article)
+            WHERE e.event_id IN $evt_ids AND other.url <> $url
+            OPTIONAL MATCH (other)-[:PUBLISHED_BY]->(osrc:Source)
+            RETURN DISTINCT other.url, other.title, other.published_at, osrc.name, osrc.reliability, other.description
+            LIMIT 20
+            """
+            c_res = graph.query(corrob_q, {"evt_ids": related_events, "url": matched_id})
+            for c_row in c_res.result_set:
+                c_url, c_title, c_pub_at, c_src_name, c_src_rel, c_desc = c_row
+                c_snippet = (
+                    (c_desc or "")[:280] + "..."
+                    if c_desc and len(c_desc) > 280
+                    else (c_desc or "")
+                )
+                articles_data.append({
+                    "url": c_url,
+                    "title": c_title or "Corroborating Article",
+                    "publisher": c_src_name or _publisher_from_url(c_url),
+                    "reliability": float(c_src_rel) if c_src_rel is not None else 1.0,
+                    "published_at": c_pub_at,
+                    "snippet": c_snippet,
+                })
+
+        return {
+            "node_id": str(matched_id),
+            "labels": labels_list,
+            "title": title or str(matched_id),
+            "occurred_at": clean_node_props.get("published_at") or occurred_at,
+            "articles_count": len(articles_data),
+            "articles": articles_data,
+        }
+
+    # 2. Match reporting/mentioning articles for Event or Entity
     if is_event:
         art_query = """
         MATCH (a:Article)-[:REPORTS_ON]->(e:Event)

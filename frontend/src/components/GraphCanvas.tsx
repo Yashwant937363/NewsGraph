@@ -14,18 +14,20 @@ interface GraphCanvasProps {
   data: GraphData;
   loading: boolean;
   loadingMessage?: string;
+  connectStartId?: string;
   onNodeClick: (node: GraphNode) => void;
   onLinkClick: (link: GraphLink) => void;
   onInvestigateNode: (nodeId: string, explain?: boolean) => void;
   onImpactNode: (nodeId: string, explain?: boolean) => void;
   onSetStartNode: (nodeId: string, nodeTitle: string) => void;
-  onSetTargetNode: (nodeId: string, nodeTitle: string) => void;
+  onSetTargetNode: (nodeId: string, nodeTitle: string, explain?: boolean) => void;
 }
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   data,
   loading,
   loadingMessage = 'Querying FalkorDB graph...',
+  connectStartId = '',
   onNodeClick,
   onLinkClick,
   onInvestigateNode,
@@ -373,16 +375,16 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <span style={{ color: '#1d1d1f' }}>Event</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8B5CF6' }}></div>
+            <span style={{ color: '#1d1d1f' }}>Story</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }}></div>
             <span style={{ color: '#1d1d1f' }}>Country</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B' }}></div>
             <span style={{ color: '#1d1d1f' }}>Company</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8B5CF6' }}></div>
-            <span style={{ color: '#1d1d1f' }}>Industry</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#06B6D4' }}></div>
@@ -411,158 +413,177 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Apple iOS AI Explain Toggle Switch */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '8px 10px',
-              borderRadius: '10px',
-              background: 'rgba(0, 0, 0, 0.04)',
-              marginBottom: '6px',
-              border: '1px solid rgba(0, 0, 0, 0.06)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1d1d1f', fontWeight: 500 }}>
-              <i className="fa-solid fa-wand-magic-sparkles" style={{ color: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.4)', fontSize: '11px' }}></i>
-              <span>AI Explain</span>
-            </div>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setAiExplain((prev) => !prev);
-              }}
-              style={{
-                width: '34px',
-                height: '18px',
-                borderRadius: '10px',
-                background: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.16)',
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'background 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-              title="Toggle AI intelligence agent explanation"
-            >
-              <div
-                style={{
-                  width: '14px',
-                  height: '14px',
-                  borderRadius: '50%',
-                  background: '#ffffff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: aiExplain ? '18px' : '2px',
-                  transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-                }}
-              />
-            </div>
-          </div>
+          {/* Event Actions & Connect Options (Only shown for Event nodes) */}
+          {(() => {
+            const isEvent =
+              contextMenu.node?.labels?.includes('Event') ||
+              !!contextMenu.node?.data?.event_id;
 
-          {/* Action options (iOS Style items) */}
-          <div
-            onClick={() => {
-              const id = String(contextMenu.node?.id);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-              onInvestigateNode(id, aiExplain);
-            }}
-            style={{
-              padding: '7px 10px',
-              borderRadius: '9px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12.5px',
-              color: '#1d1d1f',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <i className="fa-solid fa-magnifying-glass-chart" style={{ color: '#1d1d1f', width: '16px' }}></i>
-            <span>Investigate Event</span>
-          </div>
+            if (!isEvent) return null;
 
-          <div
-            onClick={() => {
-              const id = String(contextMenu.node?.id);
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-              onImpactNode(id, aiExplain);
-            }}
-            style={{
-              padding: '7px 10px',
-              borderRadius: '9px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12.5px',
-              color: '#1d1d1f',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <i className="fa-solid fa-bullseye" style={{ color: '#1d1d1f', width: '16px' }}></i>
-            <span>Calculate Impact Radius</span>
-          </div>
+            return (
+              <>
+                {/* Apple iOS AI Explain Toggle Switch */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    background: 'rgba(0, 0, 0, 0.04)',
+                    marginBottom: '6px',
+                    border: '1px solid rgba(0, 0, 0, 0.06)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#1d1d1f', fontWeight: 500 }}>
+                    <i className="fa-solid fa-wand-magic-sparkles" style={{ color: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.4)', fontSize: '11px' }}></i>
+                    <span>AI Explain</span>
+                  </div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAiExplain((prev) => !prev);
+                    }}
+                    style={{
+                      width: '34px',
+                      height: '18px',
+                      borderRadius: '10px',
+                      background: aiExplain ? '#1d1d1f' : 'rgba(0, 0, 0, 0.16)',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      transition: 'background 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
+                    title="Toggle AI intelligence agent explanation"
+                  >
+                    <div
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        position: 'absolute',
+                        top: '2px',
+                        left: aiExplain ? '18px' : '2px',
+                        transition: 'left 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                      }}
+                    />
+                  </div>
+                </div>
 
-          <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
+                {/* Investigate Event */}
+                <div
+                  onClick={() => {
+                    const id = String(contextMenu.node?.id);
+                    setContextMenu((prev) => ({ ...prev, visible: false }));
+                    onInvestigateNode(id, aiExplain);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '9px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '12.5px',
+                    color: '#1d1d1f',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <i className="fa-solid fa-magnifying-glass-chart" style={{ color: '#1d1d1f', width: '16px' }}></i>
+                  <span>Investigate Event</span>
+                </div>
 
-          <div
-            onClick={() => {
-              const id = String(contextMenu.node?.id);
-              const title = contextMenu.node?.data?.title || id;
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-              onSetStartNode(id, title);
-            }}
-            style={{
-              padding: '7px 10px',
-              borderRadius: '9px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12.5px',
-              color: '#1d1d1f',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <i className="fa-solid fa-flag" style={{ color: '#1d1d1f', width: '16px' }}></i>
-            <span>Set as Start Point (A)</span>
-          </div>
+                {/* Calculate Impact Radius */}
+                <div
+                  onClick={() => {
+                    const id = String(contextMenu.node?.id);
+                    setContextMenu((prev) => ({ ...prev, visible: false }));
+                    onImpactNode(id, aiExplain);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '9px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '12.5px',
+                    color: '#1d1d1f',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <i className="fa-solid fa-bullseye" style={{ color: '#1d1d1f', width: '16px' }}></i>
+                  <span>Calculate Impact Radius</span>
+                </div>
 
-          <div
-            onClick={() => {
-              const id = String(contextMenu.node?.id);
-              const title = contextMenu.node?.data?.title || id;
-              setContextMenu((prev) => ({ ...prev, visible: false }));
-              onSetTargetNode(id, title);
-            }}
-            style={{
-              padding: '7px 10px',
-              borderRadius: '9px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12.5px',
-              color: '#1d1d1f',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            <i className="fa-solid fa-route" style={{ color: '#1d1d1f', width: '16px' }}></i>
-            <span>Connect to Here (B)</span>
-          </div>
+                <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
 
-          <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
+                {/* Set as Start Point (A) */}
+                <div
+                  onClick={() => {
+                    const id = String(contextMenu.node?.id);
+                    const title = contextMenu.node?.data?.title || id;
+                    setContextMenu((prev) => ({ ...prev, visible: false }));
+                    onSetStartNode(id, title);
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '9px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '12.5px',
+                    color: '#1d1d1f',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <i className="fa-solid fa-flag" style={{ color: '#1d1d1f', width: '16px' }}></i>
+                  <span>{connectStartId === String(contextMenu.node?.id) ? 'Origin A (Selected)' : 'Set as Start Point (A)'}</span>
+                </div>
 
+                {/* Connect to Here (B) - Only shown after Point A has been selected */}
+                {connectStartId && connectStartId !== String(contextMenu.node?.id) && (
+                  <div
+                    onClick={() => {
+                      const id = String(contextMenu.node?.id);
+                      const title = contextMenu.node?.data?.title || id;
+                      setContextMenu((prev) => ({ ...prev, visible: false }));
+                      onSetTargetNode(id, title, aiExplain);
+                    }}
+                    style={{
+                      padding: '7px 10px',
+                      borderRadius: '9px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '12.5px',
+                      color: '#1d1d1f',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <i className="fa-solid fa-route" style={{ color: '#1d1d1f', width: '16px' }}></i>
+                    <span>Connect to Here (B)</span>
+                  </div>
+                )}
+
+                <div style={{ height: '1px', background: 'rgba(0, 0, 0, 0.06)', margin: '5px 0' }} />
+              </>
+            );
+          })()}
+
+          {/* View Evidence & Articles (Available on all nodes) */}
           <div
             onClick={() => {
               if (contextMenu.node) {

@@ -94,6 +94,7 @@ export async function getEdgeEvidence(
 }
 
 export async function getNodeEvidence(nodeId: string): Promise<NodeEvidenceResponse> {
-  const res = await fetch(`${BASE_URL}/track1/evidence/node/${encodeURIComponent(nodeId)}`);
+  const params = new URLSearchParams({ node_id: nodeId });
+  const res = await fetch(`${BASE_URL}/track1/evidence/node?${params.toString()}`);
   return handleResponse<NodeEvidenceResponse>(res);
 }

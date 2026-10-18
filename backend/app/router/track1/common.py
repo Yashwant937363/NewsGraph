@@ -3,14 +3,15 @@ from typing import List, Dict, Any, Optional
 
 LABEL_COLORS = {
     "Event": "#3B82F6",
+    "Story": "#8B5CF6",
     "Country": "#10B981",
     "Company": "#F59E0B",
-    "Industry": "#8B5CF6",
+    "Industry": "#D946EF",
     "Organization": "#06B6D4",
-    "Location": "#EC4899",
+    "Location": "#14B8A6",
     "Person": "#F43F5E",
     "Article": "#64748B",
-    "Story": "#A855F7",
+    "Source": "#EAB308",
 }
 
 

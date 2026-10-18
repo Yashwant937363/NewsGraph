@@ -65,17 +65,18 @@ async def finding_impact(event_id: str, explain: bool = False):
     impact_query = """
     MATCH (center:Event {event_id: $event_id})
     MATCH p = (center)-[:AFFECTS|CONTRIBUTED_TO|IMPACTED|INVOLVES|CAUSED*1..2]-(target)
-    WHERE target:Entity OR target:Event
+    WHERE (target:Entity OR target:Event) AND NOT target:Chunk
     UNWIND relationships(p) AS rel
     WITH DISTINCT center, startNode(rel) AS sn, endNode(rel) AS en, rel
+    WHERE NOT sn:Chunk AND NOT en:Chunk
     RETURN
-        coalesce(sn.event_id, sn.canonical_name, sn.url) AS src_id,
+        coalesce(sn.event_id, sn.story_id, sn.canonical_name, sn.url, sn.name, toString(id(sn))) AS src_id,
         labels(sn) AS src_labels,
-        coalesce(sn.title, sn.canonical_name, sn.name, sn.url) AS src_title,
+        coalesce(sn.title, sn.canonical_name, sn.name, sn.url, sn.story_id, sn.event_id) AS src_title,
         properties(sn) AS src_props,
-        coalesce(en.event_id, en.canonical_name, en.url) AS tgt_id,
+        coalesce(en.event_id, en.story_id, en.canonical_name, en.url, en.name, toString(id(en))) AS tgt_id,
         labels(en) AS tgt_labels,
-        coalesce(en.title, en.canonical_name, en.name, en.url) AS tgt_title,
+        coalesce(en.title, en.canonical_name, en.name, en.url, en.story_id, en.event_id) AS tgt_title,
         properties(en) AS tgt_props,
         type(rel) AS rel_type,
         properties(rel) AS rel_props,
@@ -98,6 +99,9 @@ async def finding_impact(event_id: str, explain: bool = False):
             rel_props,
             rel_id,
         ) = row
+
+        if not src_id or str(src_id) == "None" or not tgt_id or str(tgt_id) == "None":
+            continue
 
         src_id_str = str(src_id)
         tgt_id_str = str(tgt_id)

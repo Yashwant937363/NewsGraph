@@ -27,37 +27,46 @@ async def connect_the_dots(
             detail="FalkorDB graph is not initialized.",
         )
 
-    # 1. Verify existence of both source and target events
+    # 1. Verify existence of both source and target nodes
     verify_query = """
-    MATCH (e:Event)
-    WHERE e.event_id IN [$src, $tgt]
+    MATCH (n)
+    WHERE n.event_id IN [$src, $tgt]
+       OR n.story_id IN [$src, $tgt]
+       OR n.canonical_name IN [$src, $tgt]
+       OR n.url IN [$src, $tgt]
+       OR n.name IN [$src, $tgt]
     RETURN
-        e.event_id AS id,
-        labels(e) AS labels,
-        coalesce(e.title, e.canonical_name, e.name) AS title,
-        properties(e) AS props
+        coalesce(n.event_id, n.story_id, n.canonical_name, n.url, n.name) AS id,
+        labels(n) AS labels,
+        coalesce(n.title, n.canonical_name, n.name, n.story_id) AS title,
+        properties(n) AS props
     """
     verify_res = graph.query(verify_query, {"src": source_event_id, "tgt": target_event_id})
-    events_found = {row[0]: {"labels": list(row[1] or ["Event"]), "title": row[2], "props": _clean_props(row[3])} for row in verify_res.result_set}
+    nodes_found = {
+        row[0]: {"labels": list(row[1] or ["Event"]), "title": row[2], "props": _clean_props(row[3])}
+        for row in verify_res.result_set
+    }
 
-    if source_event_id not in events_found:
+    if source_event_id not in nodes_found:
         raise HTTPException(
             status_code=404,
-            detail=f"Source event '{source_event_id}' not found.",
+            detail=f"Source node '{source_event_id}' not found.",
         )
-    if target_event_id not in events_found:
+    if target_event_id not in nodes_found:
         raise HTTPException(
             status_code=404,
-            detail=f"Target event '{target_event_id}' not found.",
+            detail=f"Target node '{target_event_id}' not found.",
         )
 
-    src_info = events_found[source_event_id]
-    tgt_info = events_found[target_event_id]
+    src_info = nodes_found[source_event_id]
+    tgt_info = nodes_found[target_event_id]
 
     # 2. Query FalkorDB shortestPath
     path_query = """
-    MATCH (e1:Event {event_id: $src}), (e2:Event {event_id: $tgt})
-    RETURN shortestPath((e1)-[*]-(e2))
+    MATCH (n1), (n2)
+    WHERE (n1.event_id = $src OR n1.story_id = $src OR n1.canonical_name = $src OR n1.url = $src OR n1.name = $src)
+      AND (n2.event_id = $tgt OR n2.story_id = $tgt OR n2.canonical_name = $tgt OR n2.url = $tgt OR n2.name = $tgt)
+    RETURN shortestPath((n1)-[*]-(n2))
     """
     path_res = graph.query(path_query, {"src": source_event_id, "tgt": target_event_id})
 
@@ -94,10 +103,10 @@ async def connect_the_dots(
     # Process nodes along the path
     for node in path_obj.nodes():
         props = _clean_props(node.properties)
-        node_key = str(props.get("event_id") or props.get("canonical_name") or props.get("url") or node.id)
+        node_key = str(props.get("event_id") or props.get("story_id") or props.get("canonical_name") or props.get("url") or props.get("name") or node.id)
         internal_to_key[node.id] = node_key
         labels = list(node.labels or [])
-        title = props.get("title") or props.get("canonical_name") or props.get("name") or node_key
+        title = props.get("title") or props.get("canonical_name") or props.get("name") or props.get("story_id") or node_key
         if "title" not in props:
             props["title"] = title
         node_titles[node_key] = title
@@ -190,20 +199,31 @@ async def connect_the_dots(
                     scoped_article_urls.append(r[0])
 
         initial_chunks = get_initial_chunks(scoped_article_urls, limit=3)
-        explanation = await run_agent(
-            task_type="connect",
-            event_id=source_event_id,
-            event_props=src_info["props"],
-            scoped_article_urls=scoped_article_urls,
-            initial_chunks=initial_chunks,
-            graph_context={
-                "target_event_id": target_event_id,
-                "target_event_props": tgt_info["props"],
-                "path_hops": path_hops,
-            },
-        )
-        if not explanation.get("path_steps"):
-            explanation["path_steps"] = path_hops
+        try:
+            explanation = await run_agent(
+                task_type="connect",
+                event_id=source_event_id,
+                event_props=src_info["props"],
+                scoped_article_urls=scoped_article_urls,
+                initial_chunks=initial_chunks,
+                graph_context={
+                    "target_event_id": target_event_id,
+                    "target_event_props": tgt_info["props"],
+                    "path_hops": path_hops,
+                },
+            )
+        except Exception as e:
+            logger.error(f"Error during connect agent run: {e}")
+            explanation = {}
+
+    src_title = src_info["props"].get("title") or source_event_id
+    tgt_title = tgt_info["props"].get("title") or target_event_id
+    if not explanation.get("headline"):
+        explanation["headline"] = f"Causal Bridge: {src_title} → {tgt_title}"
+    if not explanation.get("bridge_narrative"):
+        explanation["bridge_narrative"] = f"Evidence-backed causal path spanning {len(links)} hops connects '{src_title}' to '{tgt_title}' across the knowledge graph."
+    if not explanation.get("path_steps"):
+        explanation["path_steps"] = path_hops
 
     return {
         "connection": {

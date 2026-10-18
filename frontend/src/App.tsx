@@ -28,7 +28,7 @@ import './App.css';
 export const App: React.FC = () => {
   const [activeEventId, setActiveEventId] = useState<string>('');
   const [activeMode, setActiveMode] = useState<ActionMode>('investigate');
-  const explain = false;
+  const defaultExplain = true;
 
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [loading, setLoading] = useState<boolean>(false);
@@ -121,7 +121,7 @@ export const App: React.FC = () => {
   // Handle Event selection from search / dropdown
   const handleSelectEvent = (eventId: string) => {
     setActiveEventId(eventId);
-    executeAnalysis(eventId, activeMode, explain);
+    executeAnalysis(eventId, activeMode, defaultExplain);
   };
 
   // Handle Entity selection from search
@@ -134,7 +134,7 @@ export const App: React.FC = () => {
         const topEvent = events[0];
         setActiveEventId(topEvent.event_id);
         showToast(`Loaded "${entityName}" incident: ${topEvent.title}`);
-        await executeAnalysis(topEvent.event_id, activeMode, explain);
+        await executeAnalysis(topEvent.event_id, activeMode, defaultExplain);
       } else {
         // Inspect node evidence directly
         const ev = await getNodeEvidence(entityName);
@@ -151,13 +151,15 @@ export const App: React.FC = () => {
   };
 
   // Handle Connect Dots execution
-  const handleConnect = async (srcId: string, tgtId: string) => {
+  const handleConnect = async (srcId: string, tgtId: string, explainVal: boolean = true) => {
     try {
       setLoading(true);
       setActiveMode('connect');
-      setLoadingMessage('Finding shortest causal path between events...');
+      setLoadingMessage('Finding shortest causal path between events & synthesizing explanation...');
+      setNodeEvidence(null);
+      setEdgeEvidence(null);
 
-      const res = await connectTheDots(srcId, tgtId, explain);
+      const res = await connectTheDots(srcId, tgtId, explainVal);
       setGraphData(res.graph || { nodes: [], links: [] });
       setConnectBriefing(res.explanation);
       setIsDrawerOpen(true);
@@ -230,6 +232,7 @@ export const App: React.FC = () => {
           data={graphData}
           loading={loading}
           loadingMessage={loadingMessage}
+          connectStartId={connectStartId}
           onNodeClick={handleNodeClick}
           onLinkClick={handleLinkClick}
           onInvestigateNode={(id, aiExplain) => {
@@ -246,10 +249,12 @@ export const App: React.FC = () => {
             setConnectStartId(id);
             showToast(`Origin A set: "${title}". Right-click Target B to Connect.`);
           }}
-          onSetTargetNode={(id) => {
+          onSetTargetNode={(id, _title, aiExplain) => {
             setConnectTargetId(id);
             if (connectStartId) {
-              handleConnect(connectStartId, id);
+              const start = connectStartId;
+              setConnectStartId('');
+              handleConnect(start, id, aiExplain ?? true);
             } else {
               setIsConnectModalOpen(true);
             }

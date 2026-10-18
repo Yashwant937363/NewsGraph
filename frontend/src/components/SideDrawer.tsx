@@ -39,6 +39,12 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     }
   }, [edgeEvidence, nodeEvidence]);
 
+  React.useEffect(() => {
+    if (connectBriefing || investigationBriefing || impactBriefing) {
+      setActiveTab('briefing');
+    }
+  }, [connectBriefing, investigationBriefing, impactBriefing]);
+
   if (!isOpen) return null;
 
   return (
@@ -336,45 +342,52 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                     )}
 
                     {/* Impacted Sectors */}
-                    {impactBriefing.impacted_sectors && Object.keys(impactBriefing.impacted_sectors).length > 0 && (
-                      <div style={{ marginBottom: '18px' }}>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(0, 0, 0, 0.45)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                          Exposed Sectors & Geographies
-                        </div>
-                        {Object.entries(impactBriefing.impacted_sectors).map(([sector, items]) => (
-                          <div key={sector} style={{ marginBottom: '12px' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#1d1d1f', marginBottom: '6px' }}>
-                              {sector}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                              {items.map((it, idx) => (
-                                <div
-                                  key={idx}
-                                  style={{
-                                    background: 'rgba(0, 0, 0, 0.03)',
-                                    border: '1px solid rgba(0, 0, 0, 0.06)',
-                                    borderRadius: '8px',
-                                    padding: '8px 10px',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 600, color: '#1d1d1f', fontSize: '12px' }}>{it.name}</span>
-                                    {it.confidence && (
-                                      <span style={{ fontSize: '10px', color: '#6e6e73' }}>
-                                        {Math.round(it.confidence * 100)}% conf
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div style={{ fontSize: '11px', color: '#515154', marginTop: '3px' }}>
-                                    {it.impact}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                    {(() => {
+                      const activeSectors = Object.entries(impactBriefing.impacted_sectors || {}).filter(
+                        ([_, items]) => Array.isArray(items) && items.length > 0
+                      );
+                      if (activeSectors.length === 0) return null;
+
+                      return (
+                        <div style={{ marginBottom: '18px' }}>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(0, 0, 0, 0.45)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                            Exposed Sectors & Geographies
                           </div>
-                        ))}
-                      </div>
-                    )}
+                          {activeSectors.map(([sector, items]) => (
+                            <div key={sector} style={{ marginBottom: '12px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: 700, color: '#1d1d1f', marginBottom: '6px' }}>
+                                {sector}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                {items.map((it, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      background: 'rgba(0, 0, 0, 0.03)',
+                                      border: '1px solid rgba(0, 0, 0, 0.06)',
+                                      borderRadius: '8px',
+                                      padding: '8px 10px',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontWeight: 600, color: '#1d1d1f', fontSize: '12px' }}>{it.name}</span>
+                                      {it.confidence && (
+                                        <span style={{ fontSize: '10px', color: '#6e6e73' }}>
+                                          {Math.round(it.confidence * 100)}% conf
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#515154', marginTop: '3px' }}>
+                                      {it.impact}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
 
                     {/* Critical Chokepoints */}
                     {impactBriefing.critical_chokepoints && impactBriefing.critical_chokepoints.length > 0 && (
@@ -413,7 +426,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
             {/* UC-03 Connect the Dots Briefing */}
             {activeMode === 'connect' && (
               <div>
-                {connectBriefing ? (
+                {connectBriefing && (connectBriefing.bridge_narrative || (connectBriefing.path_steps && connectBriefing.path_steps.length > 0)) ? (
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: 700, color: '#1d1d1f', lineHeight: 1.4, marginBottom: '14px' }}>
                       {connectBriefing.headline || 'Causal Bridge Synthesis'}
@@ -486,6 +499,79 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                               </div>
                             )}
                           </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Verified Evidence & Quotes */}
+                    {connectBriefing.verified_metrics && connectBriefing.verified_metrics.length > 0 && (
+                      <div style={{ marginBottom: '18px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(0, 0, 0, 0.45)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          Verified Evidence & Quotes
+                        </div>
+                        {connectBriefing.verified_metrics.map((item, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              borderLeft: '3px solid #1d1d1f',
+                              background: 'rgba(0, 0, 0, 0.03)',
+                              padding: '10px 14px',
+                              borderRadius: '0 10px 10px 0',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            {item.claim && <div style={{ fontWeight: 600, color: '#1d1d1f', fontSize: '12px', marginBottom: '4px' }}>{item.claim}</div>}
+                            <div style={{ fontStyle: 'italic', color: '#515154', fontSize: '11.5px', lineHeight: 1.5 }}>
+                              "{item.quote}"
+                            </div>
+                            {item.publisher && (
+                              <div style={{ fontSize: '10px', color: '#1d1d1f', marginTop: '6px', fontWeight: 600, opacity: 0.8 }}>
+                                Outlet: {item.publisher}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reporting Sources */}
+                    {connectBriefing.read_more && connectBriefing.read_more.length > 0 && (
+                      <div style={{ marginBottom: '18px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'rgba(0, 0, 0, 0.45)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          Reporting Sources
+                        </div>
+                        {connectBriefing.read_more.map((rm, idx) => (
+                          <a
+                            key={idx}
+                            href={rm.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'block',
+                              background: 'rgba(0, 0, 0, 0.03)',
+                              border: '1px solid rgba(0, 0, 0, 0.06)',
+                              borderRadius: '10px',
+                              padding: '10px 12px',
+                              marginBottom: '6px',
+                              textDecoration: 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.06)';
+                              e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.03)';
+                              e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)';
+                            }}
+                          >
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#6e6e73', textTransform: 'uppercase' }}>
+                              {rm.publisher || 'Verified Outlet'}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#1d1d1f', fontWeight: 500, marginTop: '3px' }}>
+                              {rm.title}
+                            </div>
+                          </a>
                         ))}
                       </div>
                     )}
